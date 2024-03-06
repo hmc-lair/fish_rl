@@ -1,0 +1,51 @@
+asttokens==2.4.1
+cffi @ file:///croot/cffi_1700254295673/work
+cloudpickle @ file:///croot/cloudpickle_1683040006038/work
+contourpy @ file:///croot/contourpy_1700583582875/work
+cycler @ file:///tmp/build/80754af9/cycler_1637851556182/work
+decorator==5.1.1
+executing==2.0.1
+Farama-Notifications @ file:///croot/farama-notifications_1683058702908/work
+filelock @ file:///croot/filelock_1700591183607/work
+fonttools==4.25.0
+fsspec @ file:///croot/fsspec_1701286474621/work
+gmpy2 @ file:///work/ci_py311/gmpy2_1676839849213/work
+gymnasium @ file:///croot/gymnasium-split_1683292852344/work
+ipython==8.20.0
+jax-jumpy @ file:///croot/jax-jumpy_1683230527192/work
+jedi==0.19.1
+Jinja2 @ file:///work/ci_py311/jinja2_1676823587943/work
+kiwisolver @ file:///work/ci_py311/kiwisolver_1676827230232/work
+MarkupSafe @ file:///croot/markupsafe_1704205993651/work
+matplotlib @ file:///croot/matplotlib-suite_1698692105134/work
+matplotlib-inline==0.1.6
+mkl-fft @ file:///croot/mkl_fft_1695058164594/work
+mkl-random @ file:///croot/mkl_random_1695059800811/work
+mkl-service==2.4.0
+mpmath @ file:///croot/mpmath_1690848262763/work
+munkres==1.1.4
+networkx @ file:///croot/networkx_1690561992265/work
+numpy @ file:///croot/numpy_and_numpy_base_1704311704800/work/dist/numpy-1.26.3-cp311-cp311-linux_x86_64.whl#sha256=10a078151ecec16bafb535f7487635217625fa06536dec8509e514648c78d626
+packaging @ file:///croot/packaging_1693575174725/work
+parso==0.8.3
+pexpect==4.9.0
+Pillow @ file:///croot/pillow_1696580024257/work
+ply==3.11
+prompt-toolkit==3.0.43
+ptyprocess==0.7.0
+pure-eval==0.2.2
+pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
+Pygments==2.17.2
+pyparsing @ file:///work/ci_py311/pyparsing_1677811559502/work
+PyQt5==5.15.10
+PyQt5-sip @ file:///croot/pyqt-split_1698769088074/work/pyqt_sip
+python-dateutil @ file:///tmp/build/80754af9/python-dateutil_1626374649649/work
+sip @ file:///croot/sip_1698675935381/work
+six @ file:///tmp/build/80754af9/six_1644875935023/work
+stack-data==0.6.3
+sympy @ file:///croot/sympy_1701397643339/work
+torch @ file:///croot/pytorch-select_1700158693612/work
+tornado @ file:///croot/tornado_1696936946304/work
+traitlets==5.14.1
+typing_extensions @ file:///croot/typing_extensions_1705599297034/work
+wcwidth==0.2.13
