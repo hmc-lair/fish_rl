@@ -46,7 +46,8 @@ def update(bounds, robot, fish, dt, rng):
             [robot[:2]]
         ]),
         lines_from_bounds(bounds),
-        c_p=np.array([1] * len(fish) + [-1])
+        c_p=1
+        # c_p=np.array([1] * len(fish) + [-1])
     )
 
     vx = v * np.cos(theta)
@@ -147,6 +148,7 @@ def calc_potential(pos, points, lines, c_p=1, c_l=1):
 def animate(bounds, robot_history, fish_history, dt, show=True, save=False, replace=False, maxlen=30):
     fig, ax = plt.subplots()
     num_steps = len(fish_history)  # Total number of steps
+    n_fish = fish_history.shape[1]
 
     n = 20
     positions = []
@@ -167,6 +169,9 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
     # Plot apf
     forces = ax.quiver(positions[:, 0], positions[:, 1], [0] * len(positions), [0] * len(positions), color='black', units='xy', angles='xy', scale_units='xy', scale=1, label='APF')
 
+    # Plot the forces acting on each fish
+    fish_forces = ax.quiver(fish_history[0, :, 0], fish_history[0, :, 1], [0] * n_fish, [0] * n_fish, color='gold', units='xy', angles='xy', scale_units='xy', scale=1)
+
     # Plot the number of elapsed steps
     steps = ax.text(3, 6, f'Step = 0 / {num_steps}', horizontalalignment='center', verticalalignment='top')
     ax.legend()
@@ -179,6 +184,7 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
         robot,
         fish,
         forces,
+        fish_forces,
         steps
     ]
 
@@ -202,11 +208,24 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
             positions,
             np.concatenate([fish_history[frame, :, :2], [robot_history[frame, :2]]]),
             lines_from_bounds(bounds),
-            c_p=np.array([1] * len(fish_history[frame]) + [-1])
+            c_p=1
+            # c_p=np.array([1] * len(fish_history[frame]) + [-1])
         )
         force_vecs = force_vecs / np.linalg.norm(force_vecs, axis=1).reshape(-1, 1)
         arrow_length = 0.5 / (n - 1)
         forces.set_UVC([arrow_length * force_vecs[:, 0]], [arrow_length * force_vecs[:, 1]])
+
+        # Plot forces on each fish
+        fish_force_vecs = calc_potential(
+            fish_history[frame, :, :2],
+            np.concatenate([fish_history[frame, :, :2], [robot_history[frame, :2]]]),
+            lines_from_bounds(bounds),
+            c_p=1
+            # c_p=np.array([1] * len(fish_history[frame]) + [-1])
+        )
+        fish_force_vecs = fish_force_vecs / np.linalg.norm(fish_force_vecs, axis=1).reshape(-1, 1)
+        fish_forces.set_offsets(fish_history[frame, :, :2])
+        fish_forces.set_UVC([0.05 * fish_force_vecs[:, 0]], [0.05 * fish_force_vecs[:, 1]])
 
         # Update steps
         steps.set_text('Step = {} / {}'.format(frame, num_steps))
@@ -219,6 +238,9 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
     # anim = animation.FuncAnimation(fig, update, frames=range(0, num_steps, nframes), init_func=init, blit=True, interval=interval, repeat=True)
     if show:
         plt.show()
+    if save:
+        writergif = animation.PillowWriter(fps=30)
+        anim.save('apf.gif', writer=writergif)
     # if save:
     #     savepath = utils.add_version(''.format(n=dataset.name), replace=replace)
     #     print('Saving animation to {}'.format(savepath))
@@ -242,7 +264,7 @@ if __name__ == '__main__':
         [1, 1]   # maxx, maxy
     ])
 
-    n_fish = 1
+    n_fish = 10
     robot, fish = init(bounds, n_fish, rng)
 
     # positions = []
@@ -276,17 +298,17 @@ if __name__ == '__main__':
     #     np.array([[[0.5, 0], [0.5, 1]]])
     # ))
 
-    dt = 0.01
+    dt = 0.05
     robot_history = [robot]
     fish_history = [fish]
-    for _ in range(1000):
+    for _ in range(150):
         robot, fish = update(bounds, robot, fish, dt, rng)
         robot_history.append(robot)
         fish_history.append(fish)
     robot_history = np.array(robot_history)
     fish_history = np.array(fish_history)
 
-    animate(bounds, robot_history, fish_history, dt)
+    animate(bounds, robot_history, fish_history, dt, save=True)
 
     # # Plot the fish trajectories
     # for i in range(n_fish):
