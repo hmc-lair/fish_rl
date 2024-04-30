@@ -33,10 +33,9 @@ def init(bounds, n_fish, rng):
 
     return robot, fish
 
-def update(bounds, robot, fish, dt, rng):
+def update(bounds, rng, robot, fish, action, dt):
     # Calculate forces from other fish
     # Force between fish: 1/r
-    n_fish = len(fish)
     x, y, theta, v, omega = fish.T
 
     forces = calc_potential(
@@ -46,9 +45,14 @@ def update(bounds, robot, fish, dt, rng):
             [robot[:2]]
         ]),
         lines_from_bounds(bounds),
-        c_p=1
+        c_p=np.array([0.05] * len(fish) + [0.5]),
+        c_l=0.1
         # c_p=np.array([1] * len(fish) + [-1])
     )
+
+    # Generate random forces to push the fish with, in the direction that it is moving
+    rand_theta = theta + rng.uniform(-np.pi / 4, np.pi / 4, len(fish))
+    forces += 2 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
@@ -58,7 +62,7 @@ def update(bounds, robot, fish, dt, rng):
     vy_f = vy + forces[:, 1] * dt
     x_f = x + vx_f * dt
     y_f = y + vy_f * dt
-    theta_f = wrap_to_pi(theta + omega * dt)
+    theta_f = wrap_to_pi(np.arctan2(y_f - y, x_f - x))
 
     # Confine the fish to the bounds
     x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
@@ -68,7 +72,28 @@ def update(bounds, robot, fish, dt, rng):
     v_f = np.sqrt(np.square(vx), np.square(vy))
     omega_f = (theta_f - theta) / dt
     fish_f = np.column_stack([x_f, y_f, theta_f, v_f, omega_f])
-    return robot, fish_f
+
+    # Update the robot according to the action
+    v, omega = action
+    x, y, theta, *_ = robot
+
+    # Velocity motion model
+    if omega == 0:
+        x_f = x + v * dt * np.cos(theta)
+        y_f = y + v * dt * np.sin(theta)
+    else:
+        x_c = x - v/omega * np.sin(theta)
+        y_c = y + v/omega * np.cos(theta)
+        x_f = x_c + v/omega * np.sin(theta + omega * dt)
+        y_f = y_c - v/omega * np.cos(theta + omega * dt)
+
+    # Confine the robot to the bounds
+    x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
+    y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
+
+    theta_f = wrap_to_pi(theta + omega * dt)
+    robot_f = np.array([x_f, y_f, theta_f, v, omega])
+    return robot_f, fish_f
 
 def lines_from_bounds(bounds):
     (minx, miny), (maxx, maxy) = bounds
@@ -87,6 +112,8 @@ def lines_from_bounds(bounds):
 def calc_potential(pos, points, lines, c_p=1, c_l=1):
     '''
     Compute a force vector at the given position(s)
+    c_p - constant to multiply forces from other positions by
+    c_l - constant to multiply forces from lines by
     '''
     def helper(pos):
         # Compute the force on a single position
@@ -225,7 +252,7 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
         )
         fish_force_vecs = fish_force_vecs / np.linalg.norm(fish_force_vecs, axis=1).reshape(-1, 1)
         fish_forces.set_offsets(fish_history[frame, :, :2])
-        fish_forces.set_UVC([0.05 * fish_force_vecs[:, 0]], [0.05 * fish_force_vecs[:, 1]])
+        fish_forces.set_UVC([5 / (len(fish) ** 2) * fish_force_vecs[:, 0]], [0.05 * fish_force_vecs[:, 1]])
 
         # Update steps
         steps.set_text('Step = {} / {}'.format(frame, num_steps))
@@ -308,7 +335,7 @@ if __name__ == '__main__':
     robot_history = np.array(robot_history)
     fish_history = np.array(fish_history)
 
-    animate(bounds, robot_history, fish_history, dt, save=True)
+    animate(bounds, robot_history, fish_history, dt, save=False)
 
     # # Plot the fish trajectories
     # for i in range(n_fish):
