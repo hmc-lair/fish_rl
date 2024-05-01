@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 from fish_env import FishEnv
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -186,7 +187,7 @@ else:
     print("Cuda is not available")
     num_episodes = 600
 
-for i_episode in range(num_episodes):
+for i_episode in tqdm(range(num_episodes)):
     # Initialize the environment and get it's state
     cum_reward = 0
     state, info = env.reset()

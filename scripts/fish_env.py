@@ -8,7 +8,7 @@ import pdb
 class FishEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 20}
 
-    def __init__(self, max_v=0.5, max_omega=2*np.pi, render_mode=None, n_fish=10, bounds=np.array([[0, 0], [1, 1]]), seed=None):
+    def __init__(self, max_v=5, max_omega=2*np.pi, render_mode=None, n_fish=10, bounds=np.array([[0, 0], [10, 10]]), seed=None):
         self.window_size = 1024  # The size of the PyGame window
 
         # Bounds of the simulation
@@ -129,6 +129,11 @@ class FishEnv(gym.Env):
         w = self.window_size - m
         return w * x / self.bounds[1][0]
 
+    def _scale_to_bounds(self, x):
+        m = int(self.window_size * 0.05) * 2
+        w = self.window_size - m
+        return self.bounds[1][0] * x / w
+
     def _to_window_coords(self, coords):
         m = int(self.window_size * 0.05) * 2
         w = self.window_size - m
@@ -150,7 +155,7 @@ class FishEnv(gym.Env):
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
 
-        r = 0.03
+        r = self._scale_to_bounds(30)
         # Draw the fish
         for fish in self._fish:
             pygame.draw.circle(

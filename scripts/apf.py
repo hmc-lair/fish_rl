@@ -45,14 +45,14 @@ def update(bounds, rng, robot, fish, action, dt):
             [robot[:2]]
         ]),
         lines_from_bounds(bounds),
-        c_p=np.array([0.05] * len(fish) + [0.5]),
-        c_l=0.1
+        c_p=np.array([50 / (len(fish) ** 2)] * len(fish) + [1 * robot[3]]),
+        c_l=1
         # c_p=np.array([1] * len(fish) + [-1])
     )
 
     # Generate random forces to push the fish with, in the direction that it is moving
-    rand_theta = theta + rng.uniform(-np.pi / 4, np.pi / 4, len(fish))
-    forces += 2 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+    rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
+    forces += 10 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
@@ -92,7 +92,8 @@ def update(bounds, rng, robot, fish, action, dt):
     y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
 
     theta_f = wrap_to_pi(theta + omega * dt)
-    robot_f = np.array([x_f, y_f, theta_f, v, omega])
+    v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
+    robot_f = np.array([x_f, y_f, theta_f, v_f, omega])
     return robot_f, fish_f
 
 def lines_from_bounds(bounds):
@@ -135,7 +136,7 @@ def calc_potential(pos, points, lines, c_p=1, c_l=1):
         # dist = dist[mask]
 
         # Compute forces from points
-        mag_p = c_p / dist
+        mag_p = c_p / (dist * dist)
         f_p = np.sum(np.stack([
             mag_p * dx / dist,
             mag_p * dy / dist
@@ -157,7 +158,7 @@ def calc_potential(pos, points, lines, c_p=1, c_l=1):
         dist = np.linalg.norm(pos_diff, axis=1)
         proj = -(pos_diff - pos)  # Project pos onto line segment
         t = np.nanmean((proj - p0) / diff, axis=1)  # Compute distance of the position's projection onto the line, along the line segment. t = 0 means its at p0, t = 1 means its at p1. Anything outside this range means its off the line segment
-        mag_l = c_l / dist
+        mag_l = c_l / (dist * dist)
         f_l = np.sum(
             (
                 mag_l.reshape(-1, 1) * (pos_diff / dist.reshape(-1, 1))
@@ -252,7 +253,7 @@ def animate(bounds, robot_history, fish_history, dt, show=True, save=False, repl
         )
         fish_force_vecs = fish_force_vecs / np.linalg.norm(fish_force_vecs, axis=1).reshape(-1, 1)
         fish_forces.set_offsets(fish_history[frame, :, :2])
-        fish_forces.set_UVC([5 / (len(fish) ** 2) * fish_force_vecs[:, 0]], [0.05 * fish_force_vecs[:, 1]])
+        fish_forces.set_UVC([0.05 * fish_force_vecs[:, 0]], [0.05 * fish_force_vecs[:, 1]])
 
         # Update steps
         steps.set_text('Step = {} / {}'.format(frame, num_steps))
