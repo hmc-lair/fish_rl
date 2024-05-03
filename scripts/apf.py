@@ -38,17 +38,20 @@ def update(bounds, rng, robot, fish, action, dt):
     # Force between fish: 1/r
     x, y, theta, v, omega = fish.T
 
-    forces = calc_potential(
-        fish[:, :2],
-        np.concatenate([
+    if len(fish) > 0:
+        forces = calc_potential(
             fish[:, :2],
-            [robot[:2]]
-        ]),
-        lines_from_bounds(bounds),
-        c_p=np.array([0 / (len(fish) ** 2)] * len(fish) + [5]),
-        c_l=0
-        # c_p=np.array([1] * len(fish) + [-1])
-    )
+            np.concatenate([
+                fish[:, :2],
+                [robot[:2]]
+            ]),
+            lines_from_bounds(bounds),
+            c_p=np.array([0 / (len(fish) ** 2)] * len(fish) + [5]),
+            c_l=0
+            # c_p=np.array([1] * len(fish) + [-1])
+        )
+    else:
+        forces = np.zeros((0, 2))
 
     # Generate random forces to push the fish with, in the direction that it is moving
     rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
