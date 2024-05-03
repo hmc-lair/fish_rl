@@ -45,14 +45,14 @@ def update(bounds, rng, robot, fish, action, dt):
             [robot[:2]]
         ]),
         lines_from_bounds(bounds),
-        c_p=np.array([50 / (len(fish) ** 2)] * len(fish) + [1 * robot[3]]),
-        c_l=1
+        c_p=np.array([0 / (len(fish) ** 2)] * len(fish) + [5]),
+        c_l=0
         # c_p=np.array([1] * len(fish) + [-1])
     )
 
     # Generate random forces to push the fish with, in the direction that it is moving
     rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
-    forces += 10 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+    forces += 0 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
