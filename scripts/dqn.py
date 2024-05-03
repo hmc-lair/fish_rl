@@ -182,10 +182,10 @@ def optimize_model():
 
 if torch.cuda.is_available():
     print("Cuda is available")
-    num_episodes = 600
+    num_episodes = 6000
 else:
     print("Cuda is not available")
-    num_episodes = 600
+    num_episodes = 6000
 
 for i_episode in tqdm(range(num_episodes)):
     # Initialize the environment and get it's state
