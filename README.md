@@ -7,4 +7,5 @@ conda install gymnasium
 conda install pytorch
 conda install matplotlib
 pip install ipython
+pip install gymnasium[all]
 ```
