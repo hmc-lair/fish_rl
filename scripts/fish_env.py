@@ -4,36 +4,47 @@ import gymnasium as gym
 from gymnasium import spaces
 from apf import init, update, lines_from_bounds
 import pdb
+import yaml
 
 class FishEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 20}
+    fish_settings_yaml = "fish_env_settings.yaml"
 
-    def __init__(self, max_v=5, max_omega=2*np.pi, render_mode=None, n_fish=10, bounds=np.array([[0, 0], [10, 10]]), seed=None):
+    def __init__(self, name="Default", render_mode=None, seed=None):
         self.window_size = 1024  # The size of the PyGame window
+        self.attrs = self._parse_settings(name)
+        self.title = self.attrs.get('title', name)
+        self.seed = seed
+
+        if(self.seed == None):
+            self.seed = self.attrs["seed"]
 
         # Bounds of the simulation
         # np.array([
         #     [minx, miny],
         #     [maxx, maxy]
         # ])
-        self.bounds = bounds
+        self.bounds =np.array([
+            [self.attrs['bounds']['min_x'], self.attrs['bounds']['min_y']],
+            [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_x']]
+        ])
         (self.minx, self.miny), (self.maxx, self.maxy) = self.bounds
 
         # Number of fish to simulte
-        self.n_fish = n_fish
+        self.n_fish = self.attrs['n_fish']
 
         # The observation space gives the state of the agent and the fish
         # (x, y, theta, v, omega)
         low = np.array([self.minx, self.miny, 0,     -np.inf, -np.inf])
         high = np.array([self.maxx, self.maxy, np.pi,  np.inf,  np.inf])
         self.observation_space = spaces.Box(
-            np.stack([low] * (1 + n_fish)),
-            np.stack([high] * (1 + n_fish))
+            np.stack([low] * (1 + self.n_fish)),
+            np.stack([high] * (1 + self.n_fish))
         )
 
         # An action is a linear and angular velocity command
-        self.max_v = max_v
-        self.max_omega = max_omega
+        self.max_v = self.attrs['max_lin_v']
+        self.max_omega = self.attrs['max_ang_v']
         # self.action_space = spaces.Tuple([
         #     spaces.Discrete(3, start=-1),
         #     spaces.Discrete(3, start=-1)
@@ -66,6 +77,44 @@ class FishEnv(gym.Env):
         # # Set up initial state
         # self.reset(seed=seed)
 
+    def _parse_settings(self, name):
+        settings = yaml.safe_load(open(FishEnv.fish_settings_yaml, 'r'))
+        attrs = {}
+        attrs['from'] = name
+        encountered_names = set()
+
+        # Read in settings for dataset
+        while 'from' in attrs:
+            from_name = attrs['from']
+            if from_name in encountered_names:
+                raise ValueError('Recursive definition: {} depends on itself'.format(name))
+            encountered_names.add(name)
+            old_attrs = attrs
+            attrs = settings[from_name]
+
+            # Overwrite attributes in the from dataset with the ones that are present in the top level dataset
+            for key, value in old_attrs.items():
+                if not key == 'from':
+                    if key in attrs:
+                        # Helper function to merge properties that conflict
+                        def helper(parent, key, child):
+                            if type(parent[key]) is not dict or type(child) is not dict:
+                                parent[key] = child
+                            else:
+                                existing_attrs = set(parent[key].keys())
+                                new_attrs = set(child.keys())
+                                conflict = existing_attrs.intersection(new_attrs)
+                                for k in new_attrs.difference(conflict):
+                                    parent[key][k] = child[k]
+                                for k in conflict:
+                                    helper(parent[key], k, child[k])
+                        helper(attrs, key, value)
+                    else:
+                        attrs[key] = value
+
+        return attrs
+
+
     def _get_obs(self):
         return np.vstack([self._agent, self._fish])
 
@@ -87,7 +136,13 @@ class FishEnv(gym.Env):
         ])[action]
 
     def step(self, action):
-        self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt)
+        kwargs = {
+            "fish_speed" : self.attrs["fish_speed"],
+            "wall_force" : self.attrs['wall_force'],
+            "inter_force" : self.attrs['inter_force'],
+            "robot_force" : self.attrs['robot_force']
+        }
+        self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **kwargs)
 
         # Calculate reward using the fish covariance
         # The eigenvalues `l1` and `l2` of the covariance matrix are calculated
@@ -107,6 +162,10 @@ class FishEnv(gym.Env):
         return observation, reward, False, False, info
 
     def reset(self, seed=None, options=None):
+
+        if seed == None :
+            seed = self.seed
+    
         super().reset(seed=seed)
 
         # Initialize the states of the robot and fish
@@ -263,7 +322,7 @@ class FishEnv(gym.Env):
 if __name__ == "__main__":
     a = np.array([0, 0], dtype=np.int32)
     a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
-    env = gym.wrappers.TimeLimit(FishEnv(seed=42, render_mode="human"), max_episode_steps=1000)
+    env = gym.wrappers.TimeLimit(FishEnv("Test", seed=42, render_mode="human"), max_episode_steps=1000)
 
     def register_input():
         global quit, restart

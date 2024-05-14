@@ -33,7 +33,7 @@ def init(bounds, n_fish, rng):
 
     return robot, fish
 
-def update(bounds, rng, robot, fish, action, dt):
+def update(bounds, rng, robot, fish, action, dt, **kwargs):
     # Calculate forces from other fish
     # Force between fish: 1/r
     x, y, theta, v, omega = fish.T
@@ -45,14 +45,14 @@ def update(bounds, rng, robot, fish, action, dt):
             [robot[:2]]
         ]),
         lines_from_bounds(bounds),
-        c_p=np.array([0 / (len(fish) ** 2)] * len(fish) + [5]),
-        c_l=0
+        c_p=np.array([kwargs["inter_force"] / (len(fish) ** 2)] * len(fish) + [kwargs["robot_force"]]),
+        c_l=kwargs["wall_force"]
         # c_p=np.array([1] * len(fish) + [-1])
     )
 
     # Generate random forces to push the fish with, in the direction that it is moving
     rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
-    forces += 0 * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+    forces += kwargs["fish_speed"] * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
@@ -74,8 +74,15 @@ def update(bounds, rng, robot, fish, action, dt):
     fish_f = np.column_stack([x_f, y_f, theta_f, v_f, omega_f])
 
     # Update the robot according to the action
-    v, omega = action
-    x, y, theta, *_ = robot
+    v_des, omega_des = action
+    x, y, theta, v, omega = robot
+
+    #compare incoming
+    lin_acc = kwargs["lin_acc"]
+    if(v > v_des):
+        v = v - lin_acc * dt
+    elif v < v_des:
+        v = v + lin_acc * dt
 
     # Velocity motion model
     if omega == 0:

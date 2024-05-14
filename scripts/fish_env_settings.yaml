@@ -1,0 +1,22 @@
+Default:
+  n_fish : 5
+  fish_speed : 1.0
+  wall_force : 1.0
+  inter_force : 1.0
+  robot_force : 1.0
+  title : "plot_title"
+
+  max_lin_v : 5.0
+  max_ang_v : 6.28
+
+  seed : null
+
+  bounds:
+    max_x : 10.0
+    min_x : 0.0
+    max_y : 10.0
+    min_y : 0.0
+
+Test:
+  from: Default
+  fish_speed: 10
