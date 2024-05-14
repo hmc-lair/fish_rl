@@ -1,13 +1,17 @@
 Default:
   n_fish : 5
-  fish_speed : 1.0
-  wall_force : 1.0
-  inter_force : 1.0
-  robot_force : 1.0
   title : "plot_title"
 
-  max_lin_v : 5.0
-  max_ang_v : 6.28
+  dynamics:
+    max_lin_v : 5.0
+    max_ang_v : 6.28
+    lin_acc : 5.0
+    ang_acc : 6.28
+    fish_speed : 1.0
+    wall_force : 1.0
+    inter_force : 1.0
+    robot_force : 1.0
+
 
   seed : null
 

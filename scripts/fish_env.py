@@ -43,8 +43,8 @@ class FishEnv(gym.Env):
         )
 
         # An action is a linear and angular velocity command
-        self.max_v = self.attrs['max_lin_v']
-        self.max_omega = self.attrs['max_ang_v']
+        self.max_v = self.attrs["dynamics"]['max_lin_v']
+        self.max_omega = self.attrs["dynamics"]['max_ang_v']
         # self.action_space = spaces.Tuple([
         #     spaces.Discrete(3, start=-1),
         #     spaces.Discrete(3, start=-1)
@@ -136,13 +136,7 @@ class FishEnv(gym.Env):
         ])[action]
 
     def step(self, action):
-        kwargs = {
-            "fish_speed" : self.attrs["fish_speed"],
-            "wall_force" : self.attrs['wall_force'],
-            "inter_force" : self.attrs['inter_force'],
-            "robot_force" : self.attrs['robot_force']
-        }
-        self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **kwargs)
+        self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
 
         # Calculate reward using the fish covariance
         # The eigenvalues `l1` and `l2` of the covariance matrix are calculated

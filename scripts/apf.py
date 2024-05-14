@@ -74,15 +74,15 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
     fish_f = np.column_stack([x_f, y_f, theta_f, v_f, omega_f])
 
     # Update the robot according to the action
-    v_des, omega_des = action
-    x, y, theta, v, omega = robot
+    # v_des, omega_des = action
+    x, y, theta, *actual_vel = robot
+    actual_vel = np.array(actual_vel)
+    actual_acc = np.array([kwargs["lin_acc"], kwargs["ang_acc"]])
 
     #compare incoming
-    lin_acc = kwargs["lin_acc"]
-    if(v > v_des):
-        v = v - lin_acc * dt
-    elif v < v_des:
-        v = v + lin_acc * dt
+    direction = np.sign(actual_vel - action)
+    actual_vel -= direction * actual_acc * dt
+    v, omega = actual_vel
 
     # Velocity motion model
     if omega == 0:
@@ -100,7 +100,7 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
 
     theta_f = wrap_to_pi(theta + omega * dt)
     v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
-    robot_f = np.array([x_f, y_f, theta_f, v_f, omega])
+    robot_f = np.array([x_f, y_f, theta_f, v, omega])
     return robot_f, fish_f
 
 def lines_from_bounds(bounds):
