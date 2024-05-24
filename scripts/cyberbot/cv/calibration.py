@@ -5,7 +5,7 @@ import argparse
 import yaml
 import sys
 
-def compute_perspective_warp(w, h, rvec, chessboard_size, chessboard_bounds, chessboard_square_size_pixels):
+def compute_perspective_warp(w, h, rvec, chessboard_bounds, chessboard_width_pixels, chessboard_height_pixels):
     '''
     Compute a perspective warp matrix using the calibration parameters so that the chessboard is aligned vertically and horizontally with the frame
     '''
@@ -13,9 +13,9 @@ def compute_perspective_warp(w, h, rvec, chessboard_size, chessboard_bounds, che
     x, y = rotate_matrix.dot(np.hstack([chessboard_bounds, np.ones((len(chessboard_bounds), 1))]).T).T[0]
     outpts = np.float32([
         [0, 0],
-        [chessboard_size[0] * chessboard_square_size_pixels, 0],
-        [chessboard_size[0] * chessboard_square_size_pixels, chessboard_size[1] * chessboard_square_size_pixels],
-        [0, chessboard_size[1] * chessboard_square_size_pixels]
+        [chessboard_width_pixels, 0],
+        [chessboard_width_pixels, chessboard_height_pixels],
+        [0, chessboard_height_pixels]
     ])
     outpts[:, 0] += x
     outpts[:, 1] += y
@@ -81,14 +81,11 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
 
     # Code to record clicks
     camera_bounds = np.zeros((2, 2), dtype=int)
-    # num_clicks = 0
     def on_mouse(event, x, y, flags, param):
-        # nonlocal num_clicks
         if event == cv2.EVENT_LBUTTONDOWN:
             camera_bounds[0] = [x, y]
         if event == cv2.EVENT_RBUTTONDOWN:
             camera_bounds[1] = [x, y]
-            # num_clicks += 1
     cv2.setMouseCallback(name, on_mouse)
     
     # Attempt to start video capture
@@ -100,6 +97,7 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
     # Try to get the first frame
     if cap.isOpened():
         rval, frame = cap.read()
+        dst = frame.copy()
     else:
         rval = False
 
@@ -127,29 +125,14 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
                         objpoints.append(objp)
                         imgpoints.append(corners)
                 else:
-                    if len(objpoints) == 0:
-                        print("error: no chessboard detected", file=sys.stderr)
+                    if len(objpoints) != n_calibration_frames:
+                        print(f"error: no chessboard detected in {n_calibration_frames - len(objpoints)} out of {n_calibration_frames} calibration frames", file=sys.stderr)
                     else:
-                        if len(objpoints) != n_calibration_frames:
-                            print(f"warning: {len(objpoints)}/{n_calibration_frames} calibration frames were dropped", file=sys.stderr)
-                        
                         # Calculate calibration parameters
                         h, w = frame.shape[:2]
                         _, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, (w, h), None, None)
                         rvec = np.average(rvecs, axis=0)
                         tvec = np.average(tvecs, axis=0)
-
-                        # Compute the bounds on the chessboard and the pixel size of a chessboard square
-                        chessboard_bounds = np.zeros((len(imgpoints), 4, 2))
-                        for i, imgp in enumerate(imgpoints):
-                            chessboard_bounds[i] = corners.reshape(-1, 2)[[0, chessboard_size[0]-1, -1, -chessboard_size[0]]]
-                        chessboard_bounds = np.average(chessboard_bounds, axis=0)
-                        chessboard_width_pixels = np.linalg.norm(chessboard_bounds[1] - chessboard_bounds[0]) / chessboard_size[0]
-                        chessboard_height_pixels = np.linalg.norm(chessboard_bounds[3] - chessboard_bounds[0]) / chessboard_size[1]
-                        chessboard_square_size_pixels = np.average([chessboard_width_pixels, chessboard_height_pixels])
-
-                        # Compute a perspective warp so that the chessboard is aligned vertically and horizontally
-                        perspective_warp = compute_perspective_warp(frame.shape[1], frame.shape[0], rvec, chessboard_size, chessboard_bounds, chessboard_square_size_pixels)
 
                         # Compute the re-projection error. Closer to 0 is better
                         mean_error = 0
@@ -158,22 +141,35 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
                             error = cv2.norm(imgp, reprojected_imgp, cv2.NORM_L2)
                             mean_error += error / len(objpoints)
                         print("re-projection error: {}".format(error), file=sys.stderr)
+
+                        # Re-find chessboard corners after undistorting
+                        dst2 = cv2.undistort(frame, mtx, dist)
+                        _, undistorted_corners = cv2.findChessboardCorners(dst2, chessboard_size, flags=flags)
+
+                        # Compute the bounds on the chessboard and the pixel size of a chessboard square
+                        chessboard_bounds = undistorted_corners.reshape(-1, 2)[[0, chessboard_size[0]-1, -1, -chessboard_size[0]]]
+                        chessboard_width_pixels = np.linalg.norm(chessboard_bounds[1] - chessboard_bounds[0]) / (chessboard_size[0] - 1)
+                        chessboard_height_pixels = np.linalg.norm(chessboard_bounds[3] - chessboard_bounds[0]) / (chessboard_size[1] - 1)
+                        chessboard_square_size_pixels = np.average([chessboard_width_pixels, chessboard_height_pixels])
+
+                        # Compute a perspective warp so that the chessboard is aligned vertically and horizontally
+                        perspective_warp = compute_perspective_warp(frame.shape[1], frame.shape[0], rvec, chessboard_bounds, chessboard_width_pixels, chessboard_height_pixels)
                 calibration_frames -= 1
 
             # Rendering
-            dst = frame
             if mtx is not None and dist is not None and perspective_warp is not None:
-                dst = cv2.undistort(frame, mtx, dist)
+                dst = cv2.undistort(dst, mtx, dist)
                 dst = cv2.warpPerspective(dst, perspective_warp, (frame.shape[1], frame.shape[0]))
             dst = cv2.rectangle(dst, camera_bounds[0], camera_bounds[1], (255, 0, 0), 3)
             cv2.imshow(name, dst)
 
             # Read a new frame
             rval, frame = cap.read()
+            dst = frame.copy()
 
             # Try to detect a chessboard
             chessboard_found, corners = cv2.findChessboardCorners(frame, chessboard_size, flags=flags)
-            cv2.drawChessboardCorners(frame, chessboard_size, corners, chessboard_found)
+            cv2.drawChessboardCorners(dst, chessboard_size, corners, chessboard_found)
 
             # Keypress handling
             key = cv2.waitKey(1)
@@ -203,6 +199,7 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
             "CHESSBOARD_BOUNDS": chessboard_bounds.tolist(),
             "CHESSBOARD_SQUARE_SIZE_PIXELS": chessboard_square_size_pixels.tolist(),
             "CHESSBOARD_SQUARE_SIZE_MM": chessboard_square_size_mm,
+            "METERS_PER_PIXEL": (chessboard_square_size_mm / 1000 / chessboard_square_size_pixels).tolist(),
             "CAMERA_BOUNDS": camera_bounds.tolist()
         }
     else:

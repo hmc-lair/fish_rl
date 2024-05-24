@@ -3,6 +3,7 @@ import cv2
 import time
 import argparse
 from calibration import load_calibration_params, apply_calibration
+import numpy as np
 
 def display(port_number, fps=20, render=True, calibration_params=None):
     '''
@@ -17,7 +18,13 @@ def display(port_number, fps=20, render=True, calibration_params=None):
     if render:
         cv2.namedWindow(name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(name, 640, 480)
-    
+
+        if calibration_params is not None:
+            def on_mouse(event, x, y, flags, param):
+                if event == cv2.EVENT_LBUTTONDOWN:
+                    print(f"Pixels: [{x}, {y}]. Meters: [{x * calibration_params['METERS_PER_PIXEL']:.4f}, {y * calibration_params['METERS_PER_PIXEL']:.4f}]")
+            cv2.setMouseCallback(name, on_mouse)
+
     # Attempt to start video capture
     cap = cv2.VideoCapture(port_number)
     if cap is None or not cap.isOpened():

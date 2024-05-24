@@ -7,9 +7,9 @@ from simple_pid import PID
 import math
 
 class RLController():
-    def __init__(self, camera_port=0, camera_bounds = np.array([[636,  302], [1500, 782]]), transmit_port='/dev/tty.usbmodem14102'):
+    def __init__(self, transmit_port, camera_port, calibration_path):
         self._ser = serial.Serial(transmit_port, baudrate=115200)
-        self._video = camera.VideoProcessor(camera_port, camera_bounds)
+        self._video = camera.VideoProcessor(camera_port, calibration_path)
 
     def send_commands(self, vR, vL):
        """Sends commands to the transmit board over the serial port"""
@@ -50,21 +50,24 @@ def wrap_to_pi(x):
 
 if __name__ == '__main__':
     # Setup serial communication to robot and the video processing code
-    camera_bounds = np.array([[636,  302], [1500, 782]])  # find these with calibrate_setup.py
-    port_t = '/dev/ttyACM0'                     # find this with ls /dev | grep usbmodem
-    port_c = 2                                            # either 0 or 1
-    c = RLController(camera_bounds=camera_bounds, camera_port=port_c, transmit_port=port_t)
+    c = RLController('/dev/ttyACM0', 0, 'cv/calibration.yaml')
 
     # Trajectory for the robot to follow
+    # points = np.array([
+    #     [0.04, 0.26],
+    #     [.1, .14],
+    #     [0.32, 0.12],
+    #     [.55, .13],
+    #     [0.66, 0.22],
+    #     [.58, .36],
+    #     [0.38, 0.34],
+    #     [.13, .35]
+    # ])
     points = np.array([
-        [0.04, 0.26],
-        [.1, .14],
-        [0.32, 0.12],
-        [.55, .13],
-        [0.66, 0.22],
-        [.58, .36],
-        [0.38, 0.34],
-        [.13, .35]
+        [0.40, 0.14],
+        [0.72, 0.25],
+        [0.44, 0.43],
+        [0.09, 0.29]
     ])
     current_point_idx = 0
     current_robot_state = (0, 0, 0)
@@ -134,5 +137,5 @@ if __name__ == '__main__':
         commanded_vels = np.array([0, 0], dtype=np.float64)
         current_robot_state = c.get_video_state()
         sm.run()
-        # c.send_commands(*commanded_vels)
+        c.send_commands(*commanded_vels)
         time.sleep(0.005)  # Highest possible command frequency is 0.0032 (312.5 commands per second)

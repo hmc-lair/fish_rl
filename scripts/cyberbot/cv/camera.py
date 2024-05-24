@@ -1,27 +1,17 @@
 
 import numpy as np
 import cv2
-import os
-from datetime import datetime
-from cv import convert
-
-PIX2METERS = .635/820 # meters/pixels conversion TODO: automate this calculation in __init__
-FPS = 10
-
-# MTX and DIST are properties of the camera (have to do with fisheye lens)
-MTX = np.array([[1.05663779e+03, 0.00000000e+00, 9.73055094e+02],
- [0.00000000e+00, 1.05269643e+03, 5.64799418e+02],
- [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
-DIST = np.array([-3.80359934e-01,  1.49531854e-01,  2.50649988e-05,  8.39488578e-05,  -2.83529982e-02])
+from cv.calibration import load_calibration_params, apply_calibration
 
 class VideoProcessor:
     """Class to handle video processing, displaying, CV, etc."""
 
-    def __init__(self, camera_port, camera_bounds):
+    def __init__(self, camera_port, calibration_path):
+        self._calibration_params = load_calibration_params(calibration_path)
         self._cap = cv2.VideoCapture(camera_port)
-        self._height = camera_bounds[1,1]-camera_bounds[0,1]
+        self._bounds = self._calibration_params["CAMERA_BOUNDS"]
+        self._height = self._bounds[1,1] - self._bounds[0,1]
         self._current_frame = None
-        self._bounds = camera_bounds
 
     def get_coords(self, num_objects):
         """Finds the n largest dark objects and returns their centroids in order"""
@@ -29,18 +19,17 @@ class VideoProcessor:
         coords = np.zeros([num_objects, 2])
         ret, frame = self._cap.read()
 
-        frame = cv2.undistort(frame, MTX, DIST, None, MTX)
-        frame = frame[self._bounds[0][1]:self._bounds[1][1], self._bounds[0][0]:self._bounds[1][0]]
+        frame = apply_calibration(frame, self._calibration_params)
         self._current_frame = frame.copy()
 
         if (ret is None or frame is None): return coords # if frame isn't valid, return
 
         ## Orange thresholding for the robot to follow the orange dots
 
-        lure_hsv =cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+        lure_hsv =cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
  
-        lower_blue = np.array([100,170,50], dtype = "uint8")  # 100, 50, 0
-        upper_blue = np.array([120,255,255], dtype = "uint8")  # 140, 255, 255
+        lower_blue = np.array([100,50,120], dtype = "uint8")  # 100, 50, 0
+        upper_blue = np.array([140,255,255], dtype = "uint8")  # 140, 255, 255
 
         lure_mask=cv2.inRange(lure_hsv,lower_blue,upper_blue)
         kernellure = np.ones((10,10),np.uint8)
@@ -64,13 +53,12 @@ class VideoProcessor:
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
 
-                met_cX = convert.xpxtomet(cX)
-                met_cY = convert.ypxtomet(self._height - cY)
+                met_cX = cX * self._calibration_params['METERS_PER_PIXEL']
+                met_cY = (self._height - cY) * self._calibration_params['METERS_PER_PIXEL']
 
             else: cX, cY = 0, 0
             cv2.circle(self._current_frame, (cX, cY), int(5/(i+1)), (320, 159, 22), -1)
             coords[i,:] = np.array([met_cX, met_cY])
-        # coords[:,1] = (convert.ypxtomet(self._height)) - coords[:,1] # move origin to lower left corner
         return coords
     
     def get_robot_state(self):
@@ -85,8 +73,8 @@ class VideoProcessor:
         """Shows live video feed, plotting dots on identified objects and the bot target"""
 
         if self._current_frame is not None:
-            xpx = convert.xmettopx(target.x)
-            ypx = convert.ymettopx(target.y)
+            xpx = target.x / self._calibration_params["METERS_PER_PIXEL"]
+            ypx = target.y / self._calibration_params["METERS_PER_PIXEL"]
             cv2.circle(self._current_frame, (int(xpx), int(self._height-ypx)), 5, (0, 159, 22), -1)
             cv2.namedWindow("output", cv2.WINDOW_NORMAL)
             resized = cv2.resize(self._current_frame, (960, 540))
