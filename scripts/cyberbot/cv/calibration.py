@@ -5,7 +5,7 @@ import argparse
 import yaml
 import sys
 
-def compute_perspective_warp(w, h, rvec, chessboard_bounds, chessboard_width_pixels, chessboard_height_pixels):
+def compute_perspective_warp(w, h, rvec, chessboard_size, chessboard_bounds, chessboard_square_size_pixels):
     '''
     Compute a perspective warp matrix using the calibration parameters so that the chessboard is aligned vertically and horizontally with the frame
     '''
@@ -13,9 +13,9 @@ def compute_perspective_warp(w, h, rvec, chessboard_bounds, chessboard_width_pix
     x, y = rotate_matrix.dot(np.hstack([chessboard_bounds, np.ones((len(chessboard_bounds), 1))]).T).T[0]
     outpts = np.float32([
         [0, 0],
-        [chessboard_width_pixels, 0],
-        [chessboard_width_pixels, chessboard_height_pixels],
-        [0, chessboard_height_pixels]
+        [(chessboard_size[0] - 1) * chessboard_square_size_pixels, 0],
+        [(chessboard_size[0] - 1) * chessboard_square_size_pixels, (chessboard_size[1] - 1) * chessboard_square_size_pixels],
+        [0, (chessboard_size[1] - 1) * chessboard_square_size_pixels]
     ])
     outpts[:, 0] += x
     outpts[:, 1] += y
@@ -153,7 +153,7 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
                         chessboard_square_size_pixels = np.average([chessboard_width_pixels, chessboard_height_pixels])
 
                         # Compute a perspective warp so that the chessboard is aligned vertically and horizontally
-                        perspective_warp = compute_perspective_warp(frame.shape[1], frame.shape[0], rvec, chessboard_bounds, chessboard_width_pixels, chessboard_height_pixels)
+                        perspective_warp = compute_perspective_warp(frame.shape[1], frame.shape[0], rvec, chessboard_size, chessboard_bounds, chessboard_square_size_pixels)
                 calibration_frames -= 1
 
             # Rendering
