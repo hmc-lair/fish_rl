@@ -1,6 +1,6 @@
 import serial
 import numpy as np
-from StateMachine import *
+from state_machine import *
 import time
 from cv import camera 
 from simple_pid import PID
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # Setup serial communication to robot and the video processing code
     camera_bounds = np.array([[636,  302], [1500, 782]])  # find these with calibrate_setup.py
     port_t = '/dev/ttyACM0'                     # find this with ls /dev | grep usbmodem
-    port_c = 0                                            # either 0 or 1
+    port_c = 2                                            # either 0 or 1
     c = RLController(camera_bounds=camera_bounds, camera_port=port_c, transmit_port=port_t)
 
     # Trajectory for the robot to follow
@@ -104,6 +104,7 @@ if __name__ == '__main__':
     def face_left():
         '''Use PID to face the robot left, i.e. to theta = 0'''
         global commanded_vels
+        x, y, theta = current_robot_state
         control_effort_theta = pid_theta(theta)
         commanded_vels += np.array([control_effort_theta, -control_effort_theta])
         print(f"Controlling theta to 0")
@@ -133,5 +134,5 @@ if __name__ == '__main__':
         commanded_vels = np.array([0, 0], dtype=np.float64)
         current_robot_state = c.get_video_state()
         sm.run()
-        c.send_commands(*commanded_vels)
+        # c.send_commands(*commanded_vels)
         time.sleep(0.005)  # Highest possible command frequency is 0.0032 (312.5 commands per second)

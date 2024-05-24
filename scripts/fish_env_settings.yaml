@@ -16,10 +16,10 @@ Default:
   seed : null
 
   bounds:
-    max_x : 10.0
-    min_x : 0.0
-    max_y : 10.0
-    min_y : 0.0
+    max_x : 32
+    min_x : 0
+    max_y : 18
+    min_y : 0
 
 Test:
   from: Default
