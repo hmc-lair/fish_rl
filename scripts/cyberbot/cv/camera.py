@@ -36,8 +36,8 @@ class VideoProcessor:
         orange_closing = cv2.morphologyEx(lure_mask, cv2.MORPH_CLOSE, kernellure)
         orange_dilation = cv2.dilate(orange_closing, None, 1)
         
-        cv2.imshow("orange thresh",orange_dilation)
-        cv2.waitKey(1)
+        # cv2.imshow("orange thresh",orange_dilation)
+        # cv2.waitKey(1)
 
         cnts, hierarchy = cv2.findContours(orange_dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         #cnts = cnts[0] if len(cnts) == 2 else cnts[1]

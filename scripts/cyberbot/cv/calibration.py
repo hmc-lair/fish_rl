@@ -69,10 +69,11 @@ def apply_calibration(frame, calibration_params):
 
 def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None):
     '''
-    Reads the camera feed for the given port number
-    Attempts to reach the given fps
-    If render is false, the camera feed is not displayed
-    Returns the measured fps
+    Displays the camera feed for the given port number
+    Attempts to detect a chessboard of the given size on each frame
+    Once the chessboard is detected, pressing space will compute calibration parameters
+    Then, clicking will define the camera bounds. Left click for 1st corner, right click for 2nd corner
+    Pressing esc will finish the calibration
     '''
     # Create display
     name = f"Camera feed from /dev/video{port_number}"
@@ -107,7 +108,7 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
 
     # Prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
     objp = np.zeros((chessboard_size[0] * chessboard_size[1], 3), np.float32)
-    objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1,2)
+    objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1,2) * chessboard_square_size_mm
     objpoints = []  # 3d points in real world space
     imgpoints = []  # 2d points in image plane
 
