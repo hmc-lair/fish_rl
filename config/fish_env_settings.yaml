@@ -1,0 +1,47 @@
+SimDefault:
+  n_fish : 5
+  title : Sim Default
+  type: sim
+
+  dynamics:
+    max_lin_v : 5.0
+    max_ang_v : 6.28
+    lin_acc : 5.0
+    ang_acc : 6.28
+    fish_speed : 1.0
+    wall_force : 1.0
+    inter_force : 1.0
+    robot_force : 1.0
+
+
+  seed : null
+
+  bounds:
+    max_x : 32
+    min_x : 0
+    max_y : 18
+    min_y : 0
+
+Test:
+  from: SimDefault
+  fish_speed: 10
+
+RealDefault:
+  n_fish: 0
+  title: Default
+  type: real
+
+  dynamics:
+    max_lin_v: 0.1
+    max_ang_v: 3.1415
+    fish_speed: 1.0
+    wall_force: 1.0
+    inter_force: 1.0
+    robot_force: 1.0
+
+  seed: null
+
+  transmitter_port: /dev/ttyACM0
+  camera_port: 2
+  camera_calibration_path: ../config/calibration.yaml
+  robot_params_path: ../config/robot.yaml

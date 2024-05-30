@@ -67,7 +67,7 @@ def apply_calibration(frame, calibration_params):
     '''
     return crop_frame(undistort_and_warp(frame, calibration_params), calibration_params)
 
-def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None):
+def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None, camera_height=None):
     '''
     Displays the camera feed for the given port number
     Attempts to detect a chessboard of the given size on each frame
@@ -162,6 +162,8 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
                 dst = cv2.undistort(dst, mtx, dist)
                 dst = cv2.warpPerspective(dst, perspective_warp, (frame.shape[1], frame.shape[0]))
             dst = cv2.rectangle(dst, camera_bounds[0], camera_bounds[1], (255, 0, 0), 3)
+            # if old_frame is not None:
+            #     dst = cv2.absdiff(dst, old_frame)
             cv2.imshow(name, dst)
 
             # Read a new frame
@@ -201,7 +203,8 @@ def calibrate(port_number, chessboard_size=None, chessboard_square_size_mm=None)
             "CHESSBOARD_SQUARE_SIZE_PIXELS": chessboard_square_size_pixels.tolist(),
             "CHESSBOARD_SQUARE_SIZE_MM": chessboard_square_size_mm,
             "METERS_PER_PIXEL": (chessboard_square_size_mm / 1000 / chessboard_square_size_pixels).tolist(),
-            "CAMERA_BOUNDS": camera_bounds.tolist()
+            "CAMERA_BOUNDS": camera_bounds.tolist(),
+            "CAMERA_HEIGHT": camera_height
         }
     else:
         return None
@@ -215,6 +218,7 @@ if __name__ == "__main__":
     parser.add_argument("corners_per_row", type=int, help="chessboard number of inner corners per row")
     parser.add_argument("corners_per_col", type=int, help="chessboard number of inner corners per column")
     parser.add_argument("square_size_mm", type=float, help="chessboard square size in mm")
+    parser.add_argument("camera_height", type=float, help="height of the camera off the chessboard")
     parser.add_argument("-o", "--output", help="file to write calibration parameters to")
     args = parser.parse_args()
 
@@ -222,7 +226,8 @@ if __name__ == "__main__":
     calibration_params = calibrate(
         args.port_number,
         chessboard_size=(args.corners_per_row, args.corners_per_col),
-        chessboard_square_size_mm=args.square_size_mm
+        chessboard_square_size_mm=args.square_size_mm,
+        camera_height=args.camera_height
     )
 
     # Output callibration parameters to stdout or the provided file

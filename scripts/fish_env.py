@@ -5,16 +5,30 @@ from gymnasium import spaces
 from apf import init, update, lines_from_bounds
 import pdb
 import yaml
+from testbed.cyberbot.rl_controller import RLController
 
 class FishEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 20}
-    fish_settings_yaml = "fish_env_settings.yaml"
+    fish_settings_yaml = "../config/fish_env_settings.yaml"
 
-    def __init__(self, name="Default", render_mode=None, seed=None):
+    def __init__(self, name="SimDefault", render_mode=None, seed=None):
         self.window_size = 1024  # The size of the PyGame window
         self.attrs = self._parse_settings(name)
-        self.title = self.attrs.get('title', name)
+        self.title = self.attrs.get("title", name)
         self.seed = seed
+
+        self._type = self.attrs["type"]
+        if self._type == "sim":
+            self._rl_controller = None
+        elif self._type == "real":
+            self._rl_controller = RLController(
+                self.attrs["transmitter_port"],
+                self.attrs["camera_port"],
+                self.attrs["camera_calibration_path"],
+                self.attrs["robot_params_path"]
+            )
+        else:
+            raise ValueError("Unknown environment type. Pick between 'sim' and 'real'")
 
         if(self.seed == None):
             self.seed = self.attrs["seed"]
@@ -24,13 +38,21 @@ class FishEnv(gym.Env):
         #     [minx, miny],
         #     [maxx, maxy]
         # ])
-        self.bounds =np.array([
-            [self.attrs['bounds']['min_x'], self.attrs['bounds']['min_y']],
-            [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_x']]
-        ])
+        if self._type == "sim":
+            self.bounds =np.array([
+                [self.attrs['bounds']['min_x'], self.attrs['bounds']['min_y']],
+                [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_x']]
+            ])
+        else:
+            camera_bounds = self._rl_controller._video._bounds
+            meters_per_pixel = self._rl_controller._video._calibration_params["METERS_PER_PIXEL"]
+            self.bounds = np.array([
+                [0, 0],
+                (camera_bounds[1] - camera_bounds[0]) * meters_per_pixel
+            ])
         (self.minx, self.miny), (self.maxx, self.maxy) = self.bounds
 
-        # Number of fish to simulte
+        # Number of fish to simulate
         self.n_fish = self.attrs['n_fish']
 
         # The observation space gives the state of the agent and the fish
@@ -43,8 +65,13 @@ class FishEnv(gym.Env):
         )
 
         # An action is a linear and angular velocity command
-        self.max_v = self.attrs["dynamics"]['max_lin_v']
-        self.max_omega = self.attrs["dynamics"]['max_ang_v']
+        if self._type == "sim":
+            self.max_v = self.attrs["dynamics"]['max_lin_v']
+            self.max_omega = self.attrs["dynamics"]['max_ang_v']
+        else:
+            self.max_v = self.attrs["dynamics"].get("max_lin_v", self._rl_controller._params["V_MAX"])
+            self.max_omega = self.attrs["dynamics"].get("max_ang_v", self._rl_controller._params["OMEGA_MAX"])
+
         # self.action_space = spaces.Tuple([
         #     spaces.Discrete(3, start=-1),
         #     spaces.Discrete(3, start=-1)
@@ -136,16 +163,24 @@ class FishEnv(gym.Env):
         ])[action]
 
     def step(self, action):
-        self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
+        if self._type == "sim":
+            self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
+        else:
+            self._agent = self._rl_controller.get_robot_state()
+            _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, **self.attrs["dynamics"])
+            self._rl_controller.command_vels(*self._action_to_vels(action))
 
         # Calculate reward using the fish covariance
         # The eigenvalues `l1` and `l2` of the covariance matrix are calculated
         # These are the axes of the covariance ellipse
         # https://cookierobotics.com/007/
-        cov = np.cov(self._fish[:, :2].T)
-        l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        reward = -np.sqrt(l1) - np.sqrt(l2)
+        if len(self._fish) >= 2:
+            cov = np.cov(self._fish[:, :2].T)
+            l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+            l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+            reward = -np.sqrt(l1) - np.sqrt(l2)
+        else:
+            reward = 0
 
         observation = self._get_obs()
         info = self._get_info()
@@ -164,6 +199,8 @@ class FishEnv(gym.Env):
 
         # Initialize the states of the robot and fish
         self._agent, self._fish = init(self.bounds, self.n_fish, self.np_random)
+        if self._type == "real":
+            self._agent = self._rl_controller.get_robot_state()
 
         observation = self._get_obs()
         info = self._get_info()
@@ -226,47 +263,48 @@ class FishEnv(gym.Env):
                 width=2
             )
         
-        cov = np.cov(self._fish[:, :2].T)
-        l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        if cov[0][1] == 0:
-            if cov[0][0] >= cov[1][1]:
-                theta = 0
+        if len(self._fish) >= 2:
+            cov = np.cov(self._fish[:, :2].T)
+            l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+            l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+            if cov[0][1] == 0:
+                if cov[0][0] >= cov[1][1]:
+                    theta = 0
+                else:
+                    theta = np.pi / 2
             else:
-                theta = np.pi / 2
-        else:
-            theta = np.arctan2(l1 - cov[0][0], cov[0][1])
-        x = np.average(self._fish[:, 0])
-        y = np.average(self._fish[:, 1])
-        w = 2 * np.sqrt(l1)  # 1st standard deviation
-        h = 2 * np.sqrt(l2)
-        target_rect = pygame.Rect([
-            *self._to_window_coords(np.array([x-w/2, y+h/2])),
-            *self._scale_to_window(np.array([w, h]))
-        ])
-        shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
-        pygame.draw.ellipse(
-            shape_surf,
-            (255, 0, 0),
-            [0, 0, *target_rect.size],
-            3
-        )
-        pygame.draw.line(
-            shape_surf,
-            (255, 0, 0),
-            [target_rect.size[0] / 2, 0],
-            [target_rect.size[0] / 2, target_rect.size[1]],
-            3
-        )
-        pygame.draw.line(
-            shape_surf,
-            (255, 0, 0),
-            [0, target_rect.size[1] / 2],
-            [target_rect.size[0], target_rect.size[1] / 2],
-            3
-        )
-        rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
-        canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
+                theta = np.arctan2(l1 - cov[0][0], cov[0][1])
+            x = np.average(self._fish[:, 0])
+            y = np.average(self._fish[:, 1])
+            w = 2 * np.sqrt(l1)  # 1st standard deviation
+            h = 2 * np.sqrt(l2)
+            target_rect = pygame.Rect([
+                *self._to_window_coords(np.array([x-w/2, y+h/2])),
+                *self._scale_to_window(np.array([w, h]))
+            ])
+            shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                shape_surf,
+                (255, 0, 0),
+                [0, 0, *target_rect.size],
+                3
+            )
+            pygame.draw.line(
+                shape_surf,
+                (255, 0, 0),
+                [target_rect.size[0] / 2, 0],
+                [target_rect.size[0] / 2, target_rect.size[1]],
+                3
+            )
+            pygame.draw.line(
+                shape_surf,
+                (255, 0, 0),
+                [0, target_rect.size[1] / 2],
+                [target_rect.size[0], target_rect.size[1] / 2],
+                3
+            )
+            rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
+            canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
 
         # Draw the agent
         pygame.draw.circle(
@@ -316,7 +354,7 @@ class FishEnv(gym.Env):
 if __name__ == "__main__":
     a = np.array([0, 0], dtype=np.int32)
     a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
-    env = gym.wrappers.TimeLimit(FishEnv("Test", seed=42, render_mode="human"), max_episode_steps=1000)
+    env = gym.wrappers.TimeLimit(FishEnv("RealDefault", seed=42, render_mode="human"), max_episode_steps=1000)
 
     def register_input():
         global quit, restart

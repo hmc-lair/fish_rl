@@ -38,17 +38,20 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
     # Force between fish: 1/r
     x, y, theta, v, omega = fish.T
 
-    forces = calc_potential(
-        fish[:, :2],
-        np.concatenate([
+    if len(fish) != 0:
+        forces = calc_potential(
             fish[:, :2],
-            [robot[:2]]
-        ]),
-        lines_from_bounds(bounds),
-        c_p=np.array([kwargs["inter_force"] / (len(fish) ** 2)] * len(fish) + [kwargs["robot_force"]]),
-        c_l=kwargs["wall_force"]
-        # c_p=np.array([1] * len(fish) + [-1])
-    )
+            np.concatenate([
+                fish[:, :2],
+                [robot[:2]]
+            ]),
+            lines_from_bounds(bounds),
+            c_p=np.array([kwargs["inter_force"] / (len(fish) ** 2)] * len(fish) + [kwargs["robot_force"]]),
+            c_l=kwargs["wall_force"]
+            # c_p=np.array([1] * len(fish) + [-1])
+        )
+    else:
+        forces = np.zeros((0, 2))
 
     # Generate random forces to push the fish with, in the direction that it is moving
     rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
@@ -75,32 +78,35 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
 
     # Update the robot according to the action
     # v_des, omega_des = action
-    x, y, theta, *actual_vel = robot
-    actual_vel = np.array(actual_vel)
-    actual_acc = np.array([kwargs["lin_acc"], kwargs["ang_acc"]])
+    if "lin_acc" in kwargs:
+        x, y, theta, *actual_vel = robot
+        actual_vel = np.array(actual_vel)
+        actual_acc = np.array([kwargs["lin_acc"], kwargs["ang_acc"]])
 
-    #compare incoming
-    direction = np.sign(actual_vel - action)
-    actual_vel -= direction * actual_acc * dt
-    v, omega = actual_vel
+        # Compare incoming
+        direction = np.sign(actual_vel - action)
+        actual_vel -= direction * actual_acc * dt
+        v, omega = actual_vel
 
-    # Velocity motion model
-    if omega == 0:
-        x_f = x + v * dt * np.cos(theta)
-        y_f = y + v * dt * np.sin(theta)
+        # Velocity motion model
+        if omega == 0:
+            x_f = x + v * dt * np.cos(theta)
+            y_f = y + v * dt * np.sin(theta)
+        else:
+            x_c = x - v/omega * np.sin(theta)
+            y_c = y + v/omega * np.cos(theta)
+            x_f = x_c + v/omega * np.sin(theta + omega * dt)
+            y_f = y_c - v/omega * np.cos(theta + omega * dt)
+
+        # Confine the robot to the bounds
+        x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
+        y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
+
+        theta_f = wrap_to_pi(theta + omega * dt)
+        v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
+        robot_f = np.array([x_f, y_f, theta_f, v, omega])
     else:
-        x_c = x - v/omega * np.sin(theta)
-        y_c = y + v/omega * np.cos(theta)
-        x_f = x_c + v/omega * np.sin(theta + omega * dt)
-        y_f = y_c - v/omega * np.cos(theta + omega * dt)
-
-    # Confine the robot to the bounds
-    x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
-    y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
-
-    theta_f = wrap_to_pi(theta + omega * dt)
-    v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
-    robot_f = np.array([x_f, y_f, theta_f, v, omega])
+        robot_f = robot
     return robot_f, fish_f
 
 def lines_from_bounds(bounds):
