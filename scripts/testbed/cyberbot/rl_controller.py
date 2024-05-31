@@ -52,7 +52,6 @@ class RLController():
        #print("vL = " + str(vL) + ", vR = " + str(vR))
        dict = {'vL': vL, 'vR' : vR}
        packet = str(dict) + "\r"
-       print(packet)
        self._ser.write(packet.encode())
 
     def command_vels(self, v, omega):

@@ -45,3 +45,7 @@ RealDefault:
   camera_port: 2
   camera_calibration_path: ../config/calibration.yaml
   robot_params_path: ../config/robot.yaml
+
+RealTest:
+  from: RealDefault
+  n_fish: 10

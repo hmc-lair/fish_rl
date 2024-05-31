@@ -201,6 +201,7 @@ class FishEnv(gym.Env):
         self._agent, self._fish = init(self.bounds, self.n_fish, self.np_random)
         if self._type == "real":
             self._agent = self._rl_controller.get_robot_state()
+            self._rl_controller.command_vels(0, 0)
 
         observation = self._get_obs()
         info = self._get_info()
@@ -347,6 +348,8 @@ class FishEnv(gym.Env):
             )
 
     def close(self):
+        if self._type == "real":
+            self._rl_controller.command_vels(0, 0)
         if self.window is not None:
             pygame.display.quit()
             pygame.quit()
