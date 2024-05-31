@@ -32,7 +32,7 @@ RealDefault:
   type: real
 
   dynamics:
-    max_lin_v: 0.1
+    max_lin_v: 0.4
     max_ang_v: 3.1415
     fish_speed: 1.0
     wall_force: 1.0

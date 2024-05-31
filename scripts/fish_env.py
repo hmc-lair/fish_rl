@@ -12,7 +12,8 @@ class FishEnv(gym.Env):
     fish_settings_yaml = "../config/fish_env_settings.yaml"
 
     def __init__(self, name="SimDefault", render_mode=None, seed=None):
-        self.window_size = 1024  # The size of the PyGame window
+        self.window_size = 2048  # The size of the larger side of the PyGame window
+        self.window_margin = int(self.window_size * (0.1 / 2))  # Width of margin. Both the left and right, and top and bottom margins are this width, so the total amount of margin on both axes is double this
         self.attrs = self._parse_settings(name)
         self.title = self.attrs.get("title", name)
         self.seed = seed
@@ -51,6 +52,14 @@ class FishEnv(gym.Env):
                 (camera_bounds[1] - camera_bounds[0]) * meters_per_pixel
             ])
         (self.minx, self.miny), (self.maxx, self.maxy) = self.bounds
+
+        # Get window width and height from window size, preserving the bounds ratio
+        self.width = self.maxx - self.minx
+        self.height = self.maxy - self.miny
+        self.window_width, self.window_height = (self.window_size - 2 * self.window_margin) * np.array([
+            [1, self.height / self.width],
+            [self.width / self.height, 1]
+        ])[np.argmin([self.height / self.width, self.width / self.height])]
 
         # Number of fish to simulate
         self.n_fish = self.attrs['n_fish']
@@ -214,31 +223,31 @@ class FishEnv(gym.Env):
     def render(self):
         if self.render_mode == "rgb_array":
             return self._render_frame()
-    
+
     def _scale_to_window(self, x):
-        m = int(self.window_size * 0.05) * 2
-        w = self.window_size - m
+        w = self.window_width - 2 * self.window_margin
         return w * x / self.bounds[1][0]
 
     def _scale_to_bounds(self, x):
-        m = int(self.window_size * 0.05) * 2
-        w = self.window_size - m
+        w = self.window_width - 2 * self.window_margin
         return self.bounds[1][0] * x / w
 
     def _to_window_coords(self, coords):
-        m = int(self.window_size * 0.05) * 2
-        w = self.window_size - m
+        # m = int(self.window_size * 0.05) * 2  # Margin size
+        m = self.window_margin * 2
+        w = self.window_width - m
+        h = self.window_height - m
         x, y = coords
         x = w * (x - self.bounds[0][0]) / self.bounds[1][0] + m / 2
-        y = w * (y - self.bounds[0][1]) / self.bounds[1][1] + m / 2
-        return np.stack([x, self.window_size - y]).T
+        y = h * (y - self.bounds[0][1]) / self.bounds[1][1] + m / 2
+        return np.stack([x, self.window_height - y]).T
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
-                (self.window_size, self.window_size)
+                (self.window_width, self.window_height)
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
