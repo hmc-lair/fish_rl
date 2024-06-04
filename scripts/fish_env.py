@@ -6,30 +6,37 @@ from apf import init, update, lines_from_bounds
 import pdb
 import yaml
 from testbed.cyberbot.rl_controller import RLController
+import time
 
 class FishEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 20}
+    metadata = {"render_modes": ["camera", "threshold", "human", "rgb_array"], "render_fps": 20}
     fish_settings_yaml = "../config/fish_env_settings.yaml"
 
-    def __init__(self, name="SimDefault", render_mode=None, seed=None):
+    def __init__(self, name="DefaultSim", render_mode=None, seed=None):
         self.window_size = 2048  # The size of the larger side of the PyGame window
         self.window_margin = int(self.window_size * (0.1 / 2))  # Width of margin. Both the left and right, and top and bottom margins are this width, so the total amount of margin on both axes is double this
         self.attrs = self._parse_settings(name)
         self.title = self.attrs.get("title", name)
         self.seed = seed
 
-        self._type = self.attrs["type"]
-        if self._type == "sim":
+        # Check sim vs real and rendering mode
+        assert self.attrs["type"] in ["sim", "real"]
+        self.type = self.attrs["type"]
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        if render_mode == "camera": assert self.type == "real"
+        self.render_mode = render_mode
+
+        if self.type == "sim":
             self._rl_controller = None
-        elif self._type == "real":
+        else:
             self._rl_controller = RLController(
                 self.attrs["transmitter_port"],
                 self.attrs["camera_port"],
                 self.attrs["camera_calibration_path"],
-                self.attrs["robot_params_path"]
+                self.attrs["robot_params_path"],
+                render_mode=render_mode,
+                use_pygame=True
             )
-        else:
-            raise ValueError("Unknown environment type. Pick between 'sim' and 'real'")
 
         if(self.seed == None):
             self.seed = self.attrs["seed"]
@@ -39,10 +46,10 @@ class FishEnv(gym.Env):
         #     [minx, miny],
         #     [maxx, maxy]
         # ])
-        if self._type == "sim":
+        if self.type == "sim":
             self.bounds =np.array([
                 [self.attrs['bounds']['min_x'], self.attrs['bounds']['min_y']],
-                [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_x']]
+                [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_y']]
             ])
         else:
             camera_bounds = self._rl_controller._video._bounds
@@ -59,7 +66,7 @@ class FishEnv(gym.Env):
         self.window_width, self.window_height = (self.window_size - 2 * self.window_margin) * np.array([
             [1, self.height / self.width],
             [self.width / self.height, 1]
-        ])[np.argmin([self.height / self.width, self.width / self.height])]
+        ])[np.argmin([self.height / self.width, self.width / self.height])] + 2 * self.window_margin
 
         # Number of fish to simulate
         self.n_fish = self.attrs['n_fish']
@@ -74,25 +81,14 @@ class FishEnv(gym.Env):
         )
 
         # An action is a linear and angular velocity command
-        if self._type == "sim":
+        if self.type == "sim":
             self.max_v = self.attrs["dynamics"]['max_lin_v']
             self.max_omega = self.attrs["dynamics"]['max_ang_v']
         else:
             self.max_v = self.attrs["dynamics"].get("max_lin_v", self._rl_controller._params["V_MAX"])
             self.max_omega = self.attrs["dynamics"].get("max_ang_v", self._rl_controller._params["OMEGA_MAX"])
 
-        # self.action_space = spaces.Tuple([
-        #     spaces.Discrete(3, start=-1),
-        #     spaces.Discrete(3, start=-1)
-        # ])
         self.action_space = spaces.Discrete(9)
-        # self.action_space = spaces.Box(
-        #     np.array([-self.max_v, -self.max_omega]),
-        #     np.array([ self.max_v,  self.max_omega])
-        # )
-
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self.render_mode = render_mode
 
         """
         If human-rendering is used, `self.window` will be a reference
@@ -172,10 +168,15 @@ class FishEnv(gym.Env):
         ])[action]
 
     def step(self, action):
-        if self._type == "sim":
+        terminated = False
+        truncated = False
+        if self.type == "sim":
             self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
         else:
-            self._agent = self._rl_controller.get_robot_state()
+            t, self._agent = self._rl_controller.get_robot_state()
+            if time.time() - t > self.attrs["robot_detection_timeout"]:
+                print("Episode truncated because robot was not detected")
+                truncated = True
             _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, **self.attrs["dynamics"])
             self._rl_controller.command_vels(*self._action_to_vels(action))
 
@@ -188,16 +189,30 @@ class FishEnv(gym.Env):
             l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
             l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
             reward = -np.sqrt(l1) - np.sqrt(l2)
+        elif len(self._fish) == 1:
+            # reward = -np.linalg.norm(self._fish[0][:2] - self._agent[:2])
+            # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.1:
+            #     reward += 1000
+            # reward = 1 / np.linalg.norm(self._fish[0][:2] - self._agent[:2])
+            # print(np.linalg.norm(self._fish[0][:2] - self._agent[:2]))
+            if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
+                reward = 1
+                terminated = True
+            else:
+                reward = 0
         else:
             reward = 0
+        
+        if truncated:
+            reward = -np.inf
 
         observation = self._get_obs()
         info = self._get_info()
 
-        if self.render_mode == "human":
+        if self.render_mode in ["human", "camera", "threshold"]:
             self._render_frame()
 
-        return observation, reward, False, False, info
+        return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None, options=None):
 
@@ -208,14 +223,21 @@ class FishEnv(gym.Env):
 
         # Initialize the states of the robot and fish
         self._agent, self._fish = init(self.bounds, self.n_fish, self.np_random)
-        if self._type == "real":
-            self._agent = self._rl_controller.get_robot_state()
+        if self.type == "real":
+            # Wait for camera to detect robot initially
+            self._rl_controller.reset()
+            self._agent = None
+            start_time = time.time()
+            while self._agent is None and (time.time() - start_time) < 10:
+                _, self._agent = self._rl_controller.get_robot_state()
+            if self._agent is None:
+                raise ValueError("Timed out while trying to detect robot")
             self._rl_controller.command_vels(0, 0)
 
         observation = self._get_obs()
         info = self._get_info()
 
-        if self.render_mode == "human":
+        if self.render_mode in ["human", "camera", "threshold"]:
             self._render_frame()
 
         return observation, info
@@ -225,35 +247,43 @@ class FishEnv(gym.Env):
             return self._render_frame()
 
     def _scale_to_window(self, x):
+        x = np.array(x)
         w = self.window_width - 2 * self.window_margin
         return w * x / self.bounds[1][0]
 
     def _scale_to_bounds(self, x):
+        x = np.array(x)
         w = self.window_width - 2 * self.window_margin
         return self.bounds[1][0] * x / w
 
     def _to_window_coords(self, coords):
-        # m = int(self.window_size * 0.05) * 2  # Margin size
         m = self.window_margin * 2
         w = self.window_width - m
         h = self.window_height - m
-        x, y = coords
+        x, y = np.array(coords).T
         x = w * (x - self.bounds[0][0]) / self.bounds[1][0] + m / 2
         y = h * (y - self.bounds[0][1]) / self.bounds[1][1] + m / 2
         return np.stack([x, self.window_height - y]).T
 
     def _render_frame(self):
-        if self.window is None and self.render_mode == "human":
+        if self.window is None and self.render_mode in ["human", "camera", "threshold"]:
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_width, self.window_height)
             )
-        if self.clock is None and self.render_mode == "human":
+        if self.clock is None and self.render_mode in ["human", "camera", "threshold"]:
             self.clock = pygame.time.Clock()
         
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
+
+        if self.render_mode in ["camera", "threshold"]:
+            frame = self._rl_controller.get_render_frame()
+            img = pygame.image.frombuffer(frame.tostring(), frame.shape[1::-1], "BGR")
+            img = pygame.transform.scale(img, self._scale_to_window(self.bounds[1] - self.bounds[0]))
+            rect = img.get_rect().move(self.window_margin, self.window_margin)
+            canvas.blit(img, rect)
 
         r = self._scale_to_bounds(30)
         # Draw the fish
@@ -289,8 +319,8 @@ class FishEnv(gym.Env):
             w = 2 * np.sqrt(l1)  # 1st standard deviation
             h = 2 * np.sqrt(l2)
             target_rect = pygame.Rect([
-                *self._to_window_coords(np.array([x-w/2, y+h/2])),
-                *self._scale_to_window(np.array([w, h]))
+                *self._to_window_coords([x-w/2, y+h/2]),
+                *self._scale_to_window([w, h])
             ])
             shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
             pygame.draw.ellipse(
@@ -342,7 +372,7 @@ class FishEnv(gym.Env):
                 width=int(self.window_size / 100)
             )
 
-        if self.render_mode == "human":
+        if self.render_mode in ["human", "camera", "threshold"]:
             # The following line copies our drawings from `canvas` to the visible window
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
@@ -357,8 +387,8 @@ class FishEnv(gym.Env):
             )
 
     def close(self):
-        if self._type == "real":
-            self._rl_controller.command_vels(0, 0)
+        if self.type == "real":
+            self._rl_controller.close()
         if self.window is not None:
             pygame.display.quit()
             pygame.quit()
@@ -366,7 +396,7 @@ class FishEnv(gym.Env):
 if __name__ == "__main__":
     a = np.array([0, 0], dtype=np.int32)
     a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
-    env = gym.wrappers.TimeLimit(FishEnv("RealDefault", seed=42, render_mode="human"), max_episode_steps=1000)
+    env = gym.wrappers.TimeLimit(FishEnv("FollowFishSim", seed=42, render_mode="human"), max_episode_steps=200)
 
     def register_input():
         global quit, restart

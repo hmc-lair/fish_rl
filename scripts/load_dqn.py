@@ -8,7 +8,7 @@ import argparse
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def show_episode(policy_net):
-    env = FlattenObservation(TimeLimit(FishEnv(name="RealTest", render_mode="human"), max_episode_steps=1000))
+    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim", render_mode="human"), max_episode_steps=200))
 
     # Initialize the environment and get it's state
     cum_reward = 0

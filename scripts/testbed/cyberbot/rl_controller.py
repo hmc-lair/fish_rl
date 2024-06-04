@@ -8,15 +8,21 @@ class RLController():
     def wrap_to_pi(x):
         return ((x + np.pi) % (2 * np.pi)) - np.pi
 
-    def __init__(self, transmit_port, camera_port, calibration_path, robot_path):
-        self._ser = serial.Serial(transmit_port, baudrate=115200)
-        self._video = camera.VideoProcessor(camera_port, calibration_path)
+    def __init__(self, transmit_port, camera_port, calibration_path, robot_path, render_mode=None, use_pygame=False):
+        self._transmit_port = transmit_port
+        self._ser = serial.Serial(self._transmit_port, baudrate=115200)
+
+        self._video = camera.VideoProcessor(camera_port, calibration_path, render_mode=render_mode, use_pygame=use_pygame)
         with open(robot_path, "r") as f:
             self._params = yaml.safe_load(f)
         self._wheel_separation = self._params["WHEEL_SEPARATION"] / 1000
         self._wheel_radius = self._params["WHEEL_RADIUS"] / 1000
+        self.reset()
+
+    def reset(self):
         self._timestamp = None
         self._state = None
+        self._video.reset()
 
     def _get_wheel_vels(self, v, omega):
         """Convert linear and angular velocity command to wheel velocities"""
@@ -57,34 +63,41 @@ class RLController():
     def command_vels(self, v, omega):
         """Send a linear and angular velocity command to the robot"""
         self.send_commands(*self._get_wheel_vels(v, omega))
-
-    def get_video_state(self):
-        proposed_state = self._video.get_robot_state(self._params["OFFSET"])
-        # print(proposed_state)
-        return proposed_state
     
     def get_robot_state(self):
-        proposed_state = self._video.get_robot_state(self._params["OFFSET"])
-        timestamp = time.time()
-        if self._timestamp is None:
-            self._state = np.array([*proposed_state, 0, 0])
-        else:
-            dt = timestamp - self._timestamp
-            prev_x, prev_y, prev_theta, prev_v, prev_omega = self._state
-            x, y, theta = proposed_state
-            meas_v = np.linalg.norm([x - prev_x, y - prev_y]) / dt * np.sign((x - prev_x) * np.cos(theta) + (y - prev_y) * np.sin(theta))
-            meas_omega = RLController.wrap_to_pi(theta - prev_theta) / dt
+        '''
+        Returns the robot state and the timestamp at which it was taken
+        '''
+        valid, proposed_state = self._video.get_robot_state(self._params["OFFSET"])
+        if valid:
+            timestamp = time.time()
+            if self._timestamp is None:
+                self._state = np.array([*proposed_state, 0, 0])
+            else:
+                dt = timestamp - self._timestamp
+                prev_x, prev_y, prev_theta, prev_v, prev_omega = self._state
+                x, y, theta = proposed_state
+                meas_v = np.linalg.norm([x - prev_x, y - prev_y]) / dt * np.sign((x - prev_x) * np.cos(theta) + (y - prev_y) * np.sin(theta))
+                meas_omega = RLController.wrap_to_pi(theta - prev_theta) / dt
 
-            # Apply a first-order IIR filter (infinite impulse response)
-            # Essentially acts as a low pass filter with a time constant dependent on
-            # the sampling period and the coefficient used (ff):
-            # http://www.tsdconseil.fr/tutos/tuto-iir1-en.pdf
-            v_ff = 0.4
-            omega_ff = 0.25
-            v = (1 - v_ff) * prev_v + v_ff * meas_v
-            omega = (1 - omega_ff) * prev_omega + omega_ff * meas_omega
+                # Apply a first-order IIR filter (infinite impulse response)
+                # Essentially acts as a low pass filter with a time constant dependent on
+                # the sampling period and the coefficient used (ff):
+                # http://www.tsdconseil.fr/tutos/tuto-iir1-en.pdf
+                v_ff = 0.4
+                omega_ff = 0.25
+                v = (1 - v_ff) * prev_v + v_ff * meas_v
+                omega = (1 - omega_ff) * prev_omega + omega_ff * meas_omega
 
-            self._state = np.array([x, y, theta, v, omega])
-        self._timestamp = timestamp
-        return self._state
+                self._state = np.array([x, y, theta, v, omega])
+            self._timestamp = timestamp
+        return self._timestamp, self._state
+
+    def get_render_frame(self):
+        return self._video.render_frame
+
+    def close(self):
+        self.command_vels(0, 0)
+        self._ser.close()
+        self._video.close()
 

@@ -27,8 +27,10 @@ def init(bounds, n_fish, rng):
         rng.uniform(*bounds[:, 0], n_fish),  # Random x positions
         rng.uniform(*bounds[:, 1], n_fish),  # Random y positions
         rng.uniform(-np.pi, np.pi, n_fish),  # Random headings
-        0.5 * np.ones(n_fish),                    # Zero linear velocities
-        6.28 * np.ones(n_fish)                     # Zero angular velocities
+        0,
+        0
+        # 0.5 * np.ones(n_fish),                    # Zero linear velocities
+        # 6.28 * np.ones(n_fish)                     # Zero angular velocities
     ])
 
     return robot, fish
@@ -85,7 +87,7 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
 
         # Compare incoming
         direction = np.sign(actual_vel - action)
-        actual_vel -= direction * actual_acc * dt
+        actual_vel -= direction * np.minimum(np.abs(actual_vel - action), actual_acc * dt)
         v, omega = actual_vel
 
         # Velocity motion model

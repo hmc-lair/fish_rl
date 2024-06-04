@@ -17,7 +17,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-env = FlattenObservation(TimeLimit(FishEnv(), max_episode_steps=1000))
+if __name__ == "__main__":
+    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim"), max_episode_steps=200))
 # env = gym.make("CartPole-v1", render_mode="human")  # Adding render mode human shows the training
 
 # set up matplotlib
@@ -55,16 +56,22 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
+        self.layers = nn.ModuleList([
+            nn.Linear(n_observations, 32),
+            nn.Linear(32, 64),
+            nn.Linear(64, 128),
+            nn.Linear(128, 128),
+            nn.Linear(128, 64),
+            nn.Linear(64, 32),
+            nn.Linear(32, n_actions)
+        ])
     
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        return self.layer3(x)
+        for layer in self.layers:
+            x = F.relu(layer(x))
+        return x
 
 BATCH_SIZE = 128    # number of transitions sampled from the replay buffer
 GAMMA = 0.99        # discount factor
@@ -74,21 +81,22 @@ EPS_DECAY = 1000    # controls the rate of exponential decay of epsilon, higher 
 TAU = 0.005         # update rate of the target network
 LR = 1e-4           # learning rate of the ``AdamW`` optimizer
 
-# Get number of actions from gym action space
-n_actions = spaces.utils.flatdim(env.action_space)
-# Get the number of state observations
-# state, info = env.reset()
-n_observations = spaces.utils.flatdim(env.observation_space)
+if __name__ == "__main__":
+    # Get number of actions from gym action space
+    n_actions = spaces.utils.flatdim(env.action_space)
+    # Get the number of state observations
+    # state, info = env.reset()
+    n_observations = spaces.utils.flatdim(env.observation_space)
 
-policy_net = DQN(n_observations, n_actions).to(device)
-target_net = DQN(n_observations, n_actions).to(device)
-target_net.load_state_dict(policy_net.state_dict())
+    policy_net = DQN(n_observations, n_actions).to(device)
+    target_net = DQN(n_observations, n_actions).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
 
-optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-memory = ReplayMemory(10000)
+    optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+    memory = ReplayMemory(10000)
 
 
-steps_done = 0
+    steps_done = 0
 
 
 def select_action(state):
@@ -181,7 +189,7 @@ def optimize_model():
 
 
 def show_episode():
-    env = FlattenObservation(TimeLimit(FishEnv(render_mode="human"), max_episode_steps=1000))
+    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim", render_mode="human"), max_episode_steps=200))
 
     # Initialize the environment and get it's state
     cum_reward = 0
@@ -210,10 +218,10 @@ def show_episode():
 if __name__ == "__main__":
     if torch.cuda.is_available():
         print("Cuda is available")
-        num_episodes = 600
+        num_episodes = 6000
     else:
         print("Cuda is not available")
-        num_episodes = 600
+        num_episodes = 60
 
     for i_episode in tqdm(range(num_episodes)):
         # Initialize the environment and get it's state

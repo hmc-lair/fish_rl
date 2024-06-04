@@ -132,7 +132,7 @@ if __name__ == "__main__":
     sm.start()
     while sm.is_running():
         commanded_vels = np.array([0, 0], dtype=np.float64)
-        current_robot_state = c.get_robot_state()
+        _, current_robot_state = c.get_robot_state()
         x, y, theta, v, omega = current_robot_state
         print(f"Robot state: [{x:.4f}, {y:.4f}, {theta:.2f}, {v:.2f}, {omega:.2f}]")
         sm.run()
