@@ -190,16 +190,17 @@ class FishEnv(gym.Env):
             l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
             reward = -np.sqrt(l1) - np.sqrt(l2)
         elif len(self._fish) == 1:
+            reward = -np.linalg.norm(self._agent[:2])
             # reward = -np.linalg.norm(self._fish[0][:2] - self._agent[:2])
             # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.1:
             #     reward += 1000
             # reward = 1 / np.linalg.norm(self._fish[0][:2] - self._agent[:2])
             # print(np.linalg.norm(self._fish[0][:2] - self._agent[:2]))
-            if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
-                reward = 1
-                terminated = True
-            else:
-                reward = 0
+            # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
+            #     reward = 1
+            #     terminated = True
+            # else:
+            #     reward = 0
         else:
             reward = 0
         

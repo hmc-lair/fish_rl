@@ -10,27 +10,22 @@ import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 from fish_env import FishEnv
-from tqdm import tqdm
+from tqdm import tqdmaction
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-if __name__ == "__main__":
-    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim"), max_episode_steps=200))
-# env = gym.make("CartPole-v1", render_mode="human")  # Adding render mode human shows the training
+import wandb
 
-# set up matplotlib
-is_ipython = "inline" in matplotlib.get_backend()
-if is_ipython:
-    print("Is ipython")
-    from IPython import display
-
-plt.ion()
-
-# if GPU is to be used
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BATCH_SIZE = 128    # number of transitions sampled from the replay buffer
+GAMMA = 0.99        # discount factor
+EPS_START = 0.9     # starting value of epsilon
+EPS_END = 0.05      # final value of epsilon
+EPS_DECAY = 1000    # controls the rate of exponential decay of epsilon, higher means a slower decay
+TAU = 0.05         # update rate of the target network
+LR = 1e-4           # learning rate of the ``AdamW`` optimizer
 
 # A named tuple representing a single transition in our environment. It essentially maps (state, action) pairs to their (next_state, reward) result, with the state being the screen difference image as described later on.
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
@@ -56,48 +51,30 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
+        # self.layers = nn.ModuleList([
+        #     nn.Linear(n_observations, 32),
+        #     nn.Linear(32, 64),
+        #     nn.Linear(64, 128),
+        #     nn.Linear(128, 128),
+        #     nn.Linear(128, 64),
+        #     nn.Linear(64, 32),
+        #     nn.Linear(32, n_actions)
+        # ])
         self.layers = nn.ModuleList([
-            nn.Linear(n_observations, 32),
-            nn.Linear(32, 64),
-            nn.Linear(64, 128),
-            nn.Linear(128, 128),
-            nn.Linear(128, 64),
-            nn.Linear(64, 32),
-            nn.Linear(32, n_actions)
+            nn.Linear(n_observations, 16).double(),
+            nn.Linear(16, 32).double(),
+            nn.Linear(32, 16).double(),
+            nn.Linear(16, n_actions).double()
         ])
     
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
+        # x = F.relu(self.layer1(x))
+        # return F.relu(self.layer2(x))
         for layer in self.layers:
             x = F.relu(layer(x))
         return x
-
-BATCH_SIZE = 128    # number of transitions sampled from the replay buffer
-GAMMA = 0.99        # discount factor
-EPS_START = 0.9     # starting value of epsilon
-EPS_END = 0.05      # final value of epsilon
-EPS_DECAY = 1000    # controls the rate of exponential decay of epsilon, higher means a slower decay
-TAU = 0.005         # update rate of the target network
-LR = 1e-4           # learning rate of the ``AdamW`` optimizer
-
-if __name__ == "__main__":
-    # Get number of actions from gym action space
-    n_actions = spaces.utils.flatdim(env.action_space)
-    # Get the number of state observations
-    # state, info = env.reset()
-    n_observations = spaces.utils.flatdim(env.observation_space)
-
-    policy_net = DQN(n_observations, n_actions).to(device)
-    target_net = DQN(n_observations, n_actions).to(device)
-    target_net.load_state_dict(policy_net.state_dict())
-
-    optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-    memory = ReplayMemory(10000)
-
-
-    steps_done = 0
-
 
 def select_action(state):
     global steps_done
@@ -113,13 +90,9 @@ def select_action(state):
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 
-
-episode_cum_rewards = []
-
-
 def plot_cum_rewards(show_result=False):
     plt.figure(1)
-    cum_rewards_t = torch.tensor(episode_cum_rewards, dtype=torch.float)
+    cum_rewards_t = torch.tensor(episode_cum_rewards, dtype=torch.float64)
     if show_result:
         plt.title('Result')
     else:
@@ -170,14 +143,14 @@ def optimize_model():
     # on the "older" target_net; selecting their best reward with max(1).values
     # This is merged based on the mask, such that we'll have either the expected
     # state value or 0 in case the state was final.
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
+    next_state_values = torch.zeros(BATCH_SIZE, device=device, dtype=torch.float64)
     with torch.no_grad():
         next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
     # Compute Huber loss
-    criterion = nn.SmoothL1Loss()
+    criterion =  nn.MSELoss(size_average=None, reduce=None, reduction='mean') #nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
     # Optimize the model
@@ -194,7 +167,7 @@ def show_episode():
     # Initialize the environment and get it's state
     cum_reward = 0
     state, info = env.reset()
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+    state = torch.tensor(state, dtype=torch.float64, device=device).unsqueeze(0)
     while True:
         action = policy_net(state).max(1).indices.view(1, 1)
         observation, reward, terminated, truncated, _ = env.step(action.item())
@@ -204,7 +177,7 @@ def show_episode():
         if terminated:
             next_state = None
         else:
-            next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+            next_state = torch.tensor(observation, dtype=torch.float64, device=device).unsqueeze(0)
 
         # Move to the next state
         state = next_state
@@ -216,28 +189,73 @@ def show_episode():
     env.close()
 
 if __name__ == "__main__":
+    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim"), max_episode_steps=200))
+    renv = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim", render_mode="human"), max_episode_steps=200))
+
+    # set up matplotlib
+    is_ipython = "inline" in matplotlib.get_backend()
+    if is_ipython:
+        print("Is ipython")
+        from IPython import display
+
+    plt.ion()
+
+    # if GPU is to be used
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Get number of actions from gym action space
+    n_actions = spaces.utils.flatdim(env.action_space)
+    # Get the number of state observations
+    # state, info = env.reset()
+    n_observations = spaces.utils.flatdim(env.observation_space)
+
+    policy_net = DQN(n_observations, n_actions).to(device)
+    target_net = DQN(n_observations, n_actions).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
+
+    optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+    memory = ReplayMemory(10000)
+
+    episode_cum_rewards = []
+
+    steps_done = 0
+
     if torch.cuda.is_available():
         print("Cuda is available")
-        num_episodes = 6000
+        num_episodes = 600
     else:
         print("Cuda is not available")
         num_episodes = 60
 
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="fish-rl",
+
+        # track hyperparameters and run metadata
+        config={
+            "episodes": num_episodes,
+        }
+    )
+
     for i_episode in tqdm(range(num_episodes)):
         # Initialize the environment and get it's state
+        if i_episode == 0 or (i_episode % 100) == 0:
+            tenv = renv
+        else:
+            tenv = env
         cum_reward = 0
-        state, info = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+        state, info = tenv.reset()
+        state = torch.tensor(state, dtype=torch.float64, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            observation, reward, terminated, truncated, _ = env.step(action.item())
+            observation, reward, terminated, truncated, _ = tenv.step(action.item())
             reward = torch.tensor([reward], device=device)
             done = terminated or truncated
 
             if terminated:
                 next_state = None
             else:
-                next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+                next_state = torch.tensor(observation, dtype=torch.float64, device=device).unsqueeze(0)
 
             # Store the transition in memory
             memory.push(state, action, next_state, reward)
@@ -259,11 +277,5 @@ if __name__ == "__main__":
             cum_reward += reward
 
             if done:
-                episode_cum_rewards.append(cum_reward)
-                plot_cum_rewards()
+                wandb.log({"cumulative reward": cum_reward})
                 break
-
-    print('Complete')
-    plot_cum_rewards(show_result=True)
-    plt.ioff()
-    plt.show()
