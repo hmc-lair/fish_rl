@@ -136,5 +136,5 @@ if __name__ == "__main__":
         x, y, theta, v, omega = current_robot_state
         print(f"Robot state: [{x:.4f}, {y:.4f}, {theta:.2f}, {v:.2f}, {omega:.2f}]")
         sm.run()
-        c.command_vels(*commanded_vels)
+        # c.command_vels(*commanded_vels)
         time.sleep(0.005)  # Highest possible command frequency is 0.0032 (312.5 commands per second)

@@ -1,40 +1,149 @@
 DefaultSim:
-  n_fish : 5
-  title : Default Sim
+  # Title used in plots
+  title: Default Sim
   type: sim
 
-  dynamics:
-    max_lin_v : 5.0
-    max_ang_v : 6.28
-    lin_acc : 5.0
-    ang_acc : 6.28
-    fish_speed : 1.0
-    wall_force : 1.0
-    inter_force : 1.0
-    robot_force : 1.0
+  # Number of fish to simulate
+  n_fish: 0
 
+  # Type of reward function. If null, no reward is given at any time
+  reward: null
+
+  # Seed for randomness used in initializing the robot and fish and generating the forces that drive the fish
   seed: null
 
+  # The environment is truncated after this number of steps. If null, it continues indefinitely
+  max_episode_steps: null
+
+  # Physics parameters
+  dynamics:
+    max_lin_v : 0.4  # linear velocity in m/s
+    max_ang_v : 3.1415  # angular velocity in rad/s
+    lin_acc : 0.8  # linear acceleration in m/s^2
+    ang_acc : 6.28  # angular acceleration in rad/s^2
+    fish_lin_v : 8.0  # multiplicative factor on the force that drives the fish
+    fish_ang_v: 6.2831  # max offset of the driving force from the fish heading
+    fish_drag_coef: 2.0  # coefficient of drag to apply to the fish
+    wall_force : 0.001  # multiplicative factor on the force that pushes the fish from the walls
+    inter_force : 0.001  # multiplicative factor on the force that pushes the fish from each other
+    robot_force : 0.001  # multiplicative factor on the force that pushes the fish from the robot
+
+  # Environment bounds on the robot's and fish' positions
   bounds:
-    max_x : 32
-    min_x : 0
-    max_y : 18
-    min_y : 0
+    max_x: 0.74269172
+    min_x: 0
+    max_y: 0.44522103
+    min_y: 0
+
+  # The robot and fish states are initialized by drawing uniformly randomly from these bounds
+  # Initialization bounds for x and y are given as percentages of the environment's bounds
+  init_bounds:
+    robot:
+      max_x: 0.5
+      min_x: 0.5
+      max_y: 0.5
+      min_y: 0.5
+      max_theta: 3.1415
+      min_theta: -3.1415
+      max_v: 0
+      min_v: 0
+      max_omega: 0
+      min_omega: 0
+    fish:
+      max_x: 0.8
+      min_x: 0.2
+      max_y: 0.8
+      min_y: 0.2
+      max_theta: 3.1415
+      min_theta: -3.1415
+      max_v: 0
+      min_v: 0
+      max_omega: 0
+      min_omega: 0
+
+# Environment in which the robot must reach a target somewhere in bounds
+GoToTargetSim:
+  from: DefaultSim
+  max_episode_steps: 200
+
+# Robot must reach the corner
+GoToCornerDistanceSim:
+  from: GoToTargetSim
+  reward:
+    type: distance
+    target: [0, 0]
+
+GoToCornerRadiusSim:
+  from: GoToCornerDistanceSim
+  reward:
+    type: radius
+    radius: 0.05
+    target: [0, 0]
+
+# Robot must reach a random fish
+GoToFishDistanceSim:
+  from: GoToTargetSim
+  n_fish: 1
+
+  reward:
+    type: distance
+    target: fish
+
+  dynamics:
+    fish_lin_v : 0.0
+    fish_ang_v: 0.0
+    wall_force : 0.0
+    inter_force : 0.0
+    robot_force : 0.0
+
+GoToFishRadiusSim:
+  from: GoToFishDistanceSim
+  reward:
+    type: radius  # Gets a fixed reward when it enters the radius around the target
+    radius: 0.05  # The radius in meters
+    target: fish
+
+FollowFishSim:
+  from: DefaultSim
+  n_fish: 1
+
+  max_episode_steps: 1000
+
+  reward:
+    type: distance
+    target: fish
+  
+  dynamics:
+    robot_force: 0.0
+
+################################################################### Real Environments ###################################################################
 
 DefaultReal:
-  n_fish: 0
+  # Title used in plots
   title: Default Real
   type: real
 
-  dynamics:
-    max_lin_v: 0.4
-    max_ang_v: 3.1415
-    fish_speed: 1.0
-    wall_force: 1.0
-    inter_force: 1.0
-    robot_force: 1.0
+  # Number of fish to look for
+  n_fish: 0
 
+  # Type of reward function. If null, no reward is given at any time
+  reward: null
+
+  # Seed for randomness used in initializing the fish and generating the forces that drive the fish
   seed: null
+
+  # The environment is truncated after this number of steps. If null, it continues indefinitely
+  max_episode_steps: null
+
+  dynamics:
+    max_lin_v : 0.4  # linear velocity in m/s
+    max_ang_v : 3.1415  # angular velocity in rad/s
+    fish_lin_v : 8.0  # multiplicative factor on the force that drives the fish
+    fish_ang_v: 6.2831  # max offset of the driving force from the fish heading
+    fish_drag_coef: 2.0  # coefficient of drag to apply to the fish
+    wall_force : 0.001  # multiplicative factor on the force that pushes the fish from the walls
+    inter_force : 0.001  # multiplicative factor on the force that pushes the fish from each other
+    robot_force : 0.001  # multiplicative factor on the force that pushes the fish from the robot
 
   transmitter_port: /dev/ttyACM0
   camera_port: 2
@@ -43,34 +152,36 @@ DefaultReal:
   robot_detection_timeout: 1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
   robot_detection_reset_timeout: 10  # If while resetting the episode the robot is not detected for this number of seconds, an error is raised
 
-FollowFishSim:
-  from: DefaultSim
-  n_fish: 1
-
-  dynamics:
-    max_lin_v: 0.2
-    max_ang_v: 3.1415
-    lin_acc : 0.4
-    ang_acc : 6.2830
-    fish_speed : 0.0
-    wall_force : 0.0
-    inter_force : 0.0
-    robot_force : 0.0
-
-  bounds:
-    max_x: 0.74269172
-    min_x: 0
-    max_y: 0.44522103
-    min_y: 0
+  # The robot and fish states are initialized by drawing uniformly randomly from these bounds
+  # Initialization bounds for x and y are given as percentages of the environment's bounds
+  init_bounds:
+    fish:
+      max_x: 1
+      min_x: 0
+      max_y: 1
+      min_y: 0
+      max_theta: 3.1415
+      min_theta: -3.1415
+      max_v: 0
+      min_v: 0
+      max_omega: 0
+      min_omega: 0
 
 FollowFishReal:
   from: DefaultReal
   n_fish: 1
 
+  camera_calibration_path: ../config/calibration_keck.yaml
+
+  reward:
+    type: distance
+    target: fish
+
   dynamics:
     max_lin_v: 0.2
     max_ang_v: 3.1415
-    fish_speed : 0.0
+    fish_lin_v : 0.0
+    fish_ang_v: 0.0
     wall_force : 0.0
     inter_force : 0.0
     robot_force : 0.0

@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 from fish_env import FishEnv
-from tqdm import tqdmaction
+from tqdm import tqdm
+import argparse
 
 import torch
 import torch.nn as nn
@@ -24,7 +25,7 @@ GAMMA = 0.99        # discount factor
 EPS_START = 0.9     # starting value of epsilon
 EPS_END = 0.05      # final value of epsilon
 EPS_DECAY = 1000    # controls the rate of exponential decay of epsilon, higher means a slower decay
-TAU = 0.05         # update rate of the target network
+TAU = 0.005         # update rate of the target network
 LR = 1e-4           # learning rate of the ``AdamW`` optimizer
 
 # A named tuple representing a single transition in our environment. It essentially maps (state, action) pairs to their (next_state, reward) result, with the state being the screen difference image as described later on.
@@ -51,29 +52,31 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        # self.layers = nn.ModuleList([
-        #     nn.Linear(n_observations, 32),
-        #     nn.Linear(32, 64),
-        #     nn.Linear(64, 128),
-        #     nn.Linear(128, 128),
-        #     nn.Linear(128, 64),
-        #     nn.Linear(64, 32),
-        #     nn.Linear(32, n_actions)
-        # ])
         self.layers = nn.ModuleList([
-            nn.Linear(n_observations, 16).double(),
-            nn.Linear(16, 32).double(),
-            nn.Linear(32, 16).double(),
-            nn.Linear(16, n_actions).double()
+            nn.Linear(n_observations, 32).double(),
+            nn.Linear(32, 64).double(),
+            nn.Linear(64, 128).double(),
+            nn.Linear(128, 128).double(),
+            nn.Linear(128, 64).double(),
+            nn.Linear(64, 32).double(),
+            nn.Linear(32, n_actions).double()
         ])
+        # self.layers = nn.ModuleList([
+        #     nn.Linear(n_observations, 128).double(),
+        #     nn.Linear(128, 128).double(),
+        #     nn.Linear(128, n_actions).double()
+        # ])
     
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
         # x = F.relu(self.layer1(x))
         # return F.relu(self.layer2(x))
-        for layer in self.layers:
-            x = F.relu(layer(x))
+        for i, layer in enumerate(self.layers):
+            if i == len(self.layers) - 1:
+                x = layer(x)
+            else:
+                x = F.relu(layer(x))
         return x
 
 def select_action(state):
@@ -161,8 +164,8 @@ def optimize_model():
     optimizer.step()
 
 
-def show_episode():
-    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim", render_mode="human"), max_episode_steps=200))
+def show_episode(name, render_mode):
+    env = FlattenObservation(FishEnv(name=name, render_mode=render_mode))
 
     # Initialize the environment and get it's state
     cum_reward = 0
@@ -189,8 +192,14 @@ def show_episode():
     env.close()
 
 if __name__ == "__main__":
-    env = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim"), max_episode_steps=200))
-    renv = FlattenObservation(TimeLimit(FishEnv(name="FollowFishSim", render_mode="human"), max_episode_steps=200))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("num_episodes", type=int, help="number of episodes to train for")
+    parser.add_argument("-n", "--name", type=str, default="DefaultSim", help="name of the fish env settings to use")
+    parser.add_argument("-r", "--render_mode", type=str, default="human", help="how to render the environment")
+    parser.add_argument("-o", "--output", type=str, help="output file to save the trained network to")
+    args = parser.parse_args()
+
+    env = FlattenObservation(FishEnv(name=args.name))
 
     # set up matplotlib
     is_ipython = "inline" in matplotlib.get_backend()
@@ -222,10 +231,9 @@ if __name__ == "__main__":
 
     if torch.cuda.is_available():
         print("Cuda is available")
-        num_episodes = 600
     else:
         print("Cuda is not available")
-        num_episodes = 60
+    num_episodes = args.num_episodes
 
     wandb.init(
         # set the wandb project where this run will be logged
@@ -239,16 +247,12 @@ if __name__ == "__main__":
 
     for i_episode in tqdm(range(num_episodes)):
         # Initialize the environment and get it's state
-        if i_episode == 0 or (i_episode % 100) == 0:
-            tenv = renv
-        else:
-            tenv = env
         cum_reward = 0
-        state, info = tenv.reset()
+        state, info = env.reset()
         state = torch.tensor(state, dtype=torch.float64, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            observation, reward, terminated, truncated, _ = tenv.step(action.item())
+            observation, reward, terminated, truncated, _ = env.step(action.item())
             reward = torch.tensor([reward], device=device)
             done = terminated or truncated
 
@@ -279,3 +283,7 @@ if __name__ == "__main__":
             if done:
                 wandb.log({"cumulative reward": cum_reward})
                 break
+    
+    if args.output is not None:
+        torch.save(policy_net, args.output)
+

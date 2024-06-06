@@ -13,25 +13,46 @@ def wrap_to_pi(theta):
     '''Wrap an angle in radians to -pi to pi'''
     return wrap_to(theta, center=0, range=2*np.pi)
 
-def init(bounds, n_fish, rng):
+def init(bounds, n_fish, rng, init_bounds=None):
+    width, height = bounds[1] - bounds[0]
+    min_x, min_y = bounds[0]
+
     # Starting robot state
     # x, y, theta, linear velocity, angular velocity
-    robot = np.concatenate([
-        np.average(bounds, axis=0),  # Place robot in the center
-        [0, 0, 0]
-    ])
+    if init_bounds is not None and "robot" in init_bounds:
+        robot_init_bounds = init_bounds["robot"]
+        robot = np.array([
+            rng.uniform(robot_init_bounds["min_x"] * width + min_x, robot_init_bounds["max_x"] * width + min_x),  # Random x position
+            rng.uniform(robot_init_bounds["min_y"] * height + min_y, robot_init_bounds["max_y"] * height + min_y),  # Random y position
+            rng.uniform(robot_init_bounds["min_theta"], robot_init_bounds["max_theta"]),  # Random heading
+            rng.uniform(robot_init_bounds["min_v"], robot_init_bounds["max_v"]),  # Random linear velocity
+            rng.uniform(robot_init_bounds["min_omega"], robot_init_bounds["max_omega"])  # Random angular velocity
+        ])
+    else:
+        robot = np.concatenate([
+            np.average(bounds, axis=0),  # Place robot in the center
+            [0, 0, 0]
+        ])
 
     # Starting fish states
     # x, y, theta, linear velocity, angular velocity
-    fish = np.column_stack([
-        rng.uniform(*bounds[:, 0], n_fish),  # Random x positions
-        rng.uniform(*bounds[:, 1], n_fish),  # Random y positions
-        rng.uniform(-np.pi, np.pi, n_fish),  # Random headings
-        0,
-        0
-        # 0.5 * np.ones(n_fish),                    # Zero linear velocities
-        # 6.28 * np.ones(n_fish)                     # Zero angular velocities
-    ])
+    if init_bounds is not None and "fish" in init_bounds:
+        fish_init_bounds = init_bounds["fish"]
+        fish = np.column_stack([
+            rng.uniform(fish_init_bounds["min_x"] * width + min_x, fish_init_bounds["max_x"] * width + min_x, n_fish),  # Random x positions
+            rng.uniform(fish_init_bounds["min_y"] * height + min_y, fish_init_bounds["max_y"] * height + min_y, n_fish),  # Random y positions
+            rng.uniform(fish_init_bounds["min_theta"], fish_init_bounds["max_theta"], n_fish),  # Random headings
+            rng.uniform(fish_init_bounds["min_v"], fish_init_bounds["max_v"], n_fish),  # Random linear velocities
+            rng.uniform(fish_init_bounds["min_omega"], fish_init_bounds["max_omega"], n_fish)  # Random angular velocities
+        ])
+    else:
+        fish = np.column_stack([
+            rng.uniform(*bounds[:, 0], n_fish),  # Random x positions
+            rng.uniform(*bounds[:, 1], n_fish),  # Random y positions
+            rng.uniform(-np.pi, np.pi, n_fish),  # Random headings
+            np.zeros(n_fish),
+            np.zeros(n_fish)
+        ])
 
     return robot, fish
 
@@ -56,25 +77,28 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
         forces = np.zeros((0, 2))
 
     # Generate random forces to push the fish with, in the direction that it is moving
-    rand_theta = theta + rng.uniform(-np.pi / 1000, np.pi / 1000, len(fish))
-    forces += kwargs["fish_speed"] * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+    rand_theta = theta + rng.uniform(-kwargs["fish_ang_v"] * dt, kwargs["fish_ang_v"] * dt, len(fish))
+    forces += kwargs["fish_lin_v"] * dt * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+
+    # Add drag to oppose the fish movement
+    forces += kwargs["fish_drag_coef"] * v.reshape(-1, 1) * -np.stack([np.cos(theta), np.sin(theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
 
-    # Update velocities and positions
-    vx_f = vx + forces[:, 0] * dt
-    vy_f = vy + forces[:, 1] * dt
-    x_f = x + vx_f * dt
-    y_f = y + vy_f * dt
+    # Update position and orientation
+    x_f = x + vx * dt + forces[:, 0] * dt * dt
+    y_f = y + vy * dt + forces[:, 1] * dt * dt
     theta_f = wrap_to_pi(np.arctan2(y_f - y, x_f - x))
 
     # Confine the fish to the bounds
     x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
     y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
 
-    # theta_f = np.arctan2(vy_f, vx_f)
-    v_f = np.sqrt(np.square(vx), np.square(vy))
+    # Update velocities
+    vx_f = (x_f - x) / dt
+    vy_f = (y_f - y) / dt
+    v_f = np.sqrt(np.square(vx_f) + np.square(vy_f))
     omega_f = (theta_f - theta) / dt
     fish_f = np.column_stack([x_f, y_f, theta_f, v_f, omega_f])
 

@@ -7,6 +7,7 @@ import pdb
 import yaml
 from testbed.cyberbot.rl_controller import RLController
 import time
+import argparse
 
 class FishEnv(gym.Env):
     metadata = {"render_modes": ["camera", "threshold", "human", "rgb_array"], "render_fps": 20}
@@ -90,6 +91,41 @@ class FishEnv(gym.Env):
 
         self.action_space = spaces.Discrete(9)
 
+        # Create the reward function using the settings in the yaml file
+        if "reward" not in self.attrs or self.attrs["reward"] is None:
+            if "reward" not in self.attrs:
+                print("Warning: no reward type specified. Defaulting to no reward")
+            self._get_reward = lambda agent, fish: (0, False)
+        else:
+            reward_params = self.attrs["reward"]
+            assert "type" in reward_params
+            if reward_params["type"] == "distance" or reward_params["type"] == "radius":
+                assert "target" in reward_params
+                if reward_params["type"] == "radius":
+                    assert "radius" in reward_params
+                    radius = reward_params["radius"]
+
+                if reward_params["target"] == "fish":
+                    assert self.n_fish == 1
+                    if reward_params["type"] == "distance":
+                        self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - fish[0][:2]), False)  # Distance from fish
+                    else:
+                        self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - fish[0][:2]) > radius else (1, True)  # Radius from fish
+                elif isinstance(reward_params["target"], list):
+                    target = np.array(reward_params["target"])
+                    assert target.shape == (2,)
+                    if reward_params["type"] == "distance":
+                        self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - target), False)  # Distance from target point
+                    else:
+                        self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
+                else:
+                    raise ValueError(f"Unknown target: {reward_params['target']}")
+            else:
+                raise ValueError(f"Unknown reward type: {reward_params['type']}")
+
+        self._max_episode_steps = self.attrs.get("max_episode_steps", None)
+        self._elapsed_steps = None
+
         """
         If human-rendering is used, `self.window` will be a reference
         to the window that we draw to. `self.clock` will be a clock that is used
@@ -146,7 +182,6 @@ class FishEnv(gym.Env):
 
         return attrs
 
-
     def _get_obs(self):
         return np.vstack([self._agent, self._fish])
 
@@ -168,7 +203,6 @@ class FishEnv(gym.Env):
         ])[action]
 
     def step(self, action):
-        terminated = False
         truncated = False
         if self.type == "sim":
             self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
@@ -180,38 +214,43 @@ class FishEnv(gym.Env):
             _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, **self.attrs["dynamics"])
             self._rl_controller.command_vels(*self._action_to_vels(action))
 
-        # Calculate reward using the fish covariance
-        # The eigenvalues `l1` and `l2` of the covariance matrix are calculated
-        # These are the axes of the covariance ellipse
-        # https://cookierobotics.com/007/
-        if len(self._fish) >= 2:
-            cov = np.cov(self._fish[:, :2].T)
-            l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            reward = -np.sqrt(l1) - np.sqrt(l2)
-        elif len(self._fish) == 1:
-            reward = -np.linalg.norm(self._agent[:2])
-            # reward = -np.linalg.norm(self._fish[0][:2] - self._agent[:2])
-            # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.1:
-            #     reward += 1000
-            # reward = 1 / np.linalg.norm(self._fish[0][:2] - self._agent[:2])
-            # print(np.linalg.norm(self._fish[0][:2] - self._agent[:2]))
-            # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
-            #     reward = 1
-            #     terminated = True
-            # else:
-            #     reward = 0
-        else:
-            reward = 0
+        reward, terminated = self._get_reward(self._agent, self._fish)
+        # # Calculate reward using the fish covariance
+        # # The eigenvalues `l1` and `l2` of the covariance matrix are calculated
+        # # These are the axes of the covariance ellipse
+        # # https://cookierobotics.com/007/
+        # if len(self._fish) >= 2:
+        #     cov = np.cov(self._fish[:, :2].T)
+        #     l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     reward = -np.sqrt(l1) - np.sqrt(l2)
+        # elif len(self._fish) == 1:
+        #     #reward = -np.linalg.norm(self._agent[:2])
+        #     reward = -np.linalg.norm(self._fish[0][:2] - self._agent[:2])
+        #     # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.1:
+        #     #     reward += 1000
+        #     # reward = 1 / np.linalg.norm(self._fish[0][:2] - self._agent[:2])
+        #     # print(np.linalg.norm(self._fish[0][:2] - self._agent[:2]))
+        #     # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
+        #     #     reward = 1
+        #     #     terminated = True
+        #     # else:
+        #     #     reward = 0
+        # else:
+        #     reward = 0
         
-        if truncated:
-            reward = -np.inf
+        # if truncated:
+        #     reward = -np.inf
 
         observation = self._get_obs()
         info = self._get_info()
 
         if self.render_mode in ["human", "camera", "threshold"]:
             self._render_frame()
+
+        self._elapsed_steps += 1
+        if self._max_episode_steps is not None and self._elapsed_steps >= self._max_episode_steps:
+            truncated = True
 
         return observation, reward, terminated, truncated, info
 
@@ -223,7 +262,7 @@ class FishEnv(gym.Env):
         super().reset(seed=seed)
 
         # Initialize the states of the robot and fish
-        self._agent, self._fish = init(self.bounds, self.n_fish, self.np_random)
+        self._agent, self._fish = init(self.bounds, self.n_fish, self.np_random, self.attrs["init_bounds"])
         if self.type == "real":
             # Wait for camera to detect robot initially
             self._rl_controller.reset()
@@ -235,6 +274,7 @@ class FishEnv(gym.Env):
                 raise ValueError("Timed out while trying to detect robot")
             self._rl_controller.command_vels(0, 0)
 
+        self._elapsed_steps = 0
         observation = self._get_obs()
         info = self._get_info()
 
@@ -395,9 +435,17 @@ class FishEnv(gym.Env):
             pygame.quit()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Definition of FishEnv, the environment used to run both the simulated robot and the real robot"
+    )
+    parser.add_argument("-n", "--name", type=str, default="DefaultSim", help="name of the settings to use")
+    parser.add_argument("-r", "--render_mode", type=str, default="human", help="how to render the environment")
+    parser.add_argument("-s", "--seed", type=int, help="seed for the ennvironment")
+    args = parser.parse_args()
+
     a = np.array([0, 0], dtype=np.int32)
     a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
-    env = gym.wrappers.TimeLimit(FishEnv("FollowFishSim", seed=42, render_mode="human"), max_episode_steps=200)
+    env = FishEnv(args.name, seed=args.seed, render_mode=args.render_mode)
 
     def register_input():
         global quit, restart
