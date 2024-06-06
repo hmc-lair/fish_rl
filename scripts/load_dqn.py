@@ -11,7 +11,7 @@ def show_episode(policy_net, name, render_mode):
     env = FlattenObservation(FishEnv(name=name, render_mode=render_mode))
 
     # Initialize the environment and get it's state
-    cum_reward = 0
+    cum_reward = 0.0
     state, info = env.reset()
     state = torch.tensor(state, dtype=torch.float64, device=device).unsqueeze(0)
     while True:

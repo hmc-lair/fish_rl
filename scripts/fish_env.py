@@ -123,6 +123,18 @@ class FishEnv(gym.Env):
             else:
                 raise ValueError(f"Unknown reward type: {reward_params['type']}")
 
+            if "backwards_penalty" in self.attrs["reward"]:
+                penalty = self.attrs["reward"]["backwards_penalty"]
+                old_reward_func = self._get_reward
+                def wrapper(agent, fish):
+                    reward, truncated = old_reward_func(agent, fish)
+                    if agent[3] < 0:  # Velocity less than 0
+                        return reward - penalty, truncated
+                    else:
+                        return reward, truncated
+                self._get_reward = wrapper
+
+
         self._max_episode_steps = self.attrs.get("max_episode_steps", None)
         self._elapsed_steps = None
 
