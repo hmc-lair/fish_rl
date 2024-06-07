@@ -103,6 +103,16 @@ GoToFishRadiusSim:
     radius: 0.05  # The radius in meters
     target: fish
 
+DistBkwdCostSim:
+  from: GoToFishDistanceSim
+  reward:
+    backwards_penalty: 0.2
+
+RadBkwdCostSim:
+  from: GoToFishRadiusSim
+  reward:
+    backwards_penalty: 0.002
+
 FollowFishSim:
   from: DefaultSim
   n_fish: 1
