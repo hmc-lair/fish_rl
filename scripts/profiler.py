@@ -6,9 +6,10 @@ from tqdm import tqdm
 import timeit
 import numpy as np
 from apf import init, update
+from numba import jit
 
 def time_episode(n):
-    env = FlattenObservation(TimeLimit(FishEnv(), max_episode_steps=1000))
+    env = FlattenObservation(FishEnv("FollowFishSim"))
     def it():
         # Initialize the environment and get it's state
         env.reset()
@@ -17,11 +18,12 @@ def time_episode(n):
             action = 4
             observation, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
+    it()
     total_time = timeit.timeit(it, number=n)
     print(f"Total time: {total_time:.2f}, n: {n}, time per it: {total_time / n}")
 
 def time_update(n):
-    env = FlattenObservation(TimeLimit(FishEnv(), max_episode_steps=1000))
+    env = FlattenObservation(FishEnv("FollowFishSim"))
     env.reset()
     unwrapped = env.unwrapped
     def it():
@@ -32,8 +34,9 @@ def time_update(n):
             unwrapped._fish,
             np.random.randint(0, 9),
             env.dt,
-            **env.attrs["dynamics"]
+            env.attrs["dynamics"]
         )
+    it()
     total_time = timeit.timeit(it, number=n)
     print(f"Total time: {total_time:.2f}, n: {n}, time per it: {total_time / n}")
 

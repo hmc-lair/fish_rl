@@ -89,7 +89,8 @@ class FishEnv(gym.Env):
             self.max_v = self.attrs["dynamics"].get("max_lin_v", self._rl_controller._params["V_MAX"])
             self.max_omega = self.attrs["dynamics"].get("max_ang_v", self._rl_controller._params["OMEGA_MAX"])
 
-        self.action_space = spaces.Discrete(9)
+        # self.action_space = spaces.Discrete(9)
+        self.action_space = spaces.Discrete(6)
 
         # Create the reward function using the settings in the yaml file
         if "reward" not in self.attrs or self.attrs["reward"] is None:
@@ -203,9 +204,6 @@ class FishEnv(gym.Env):
 
     def _action_to_vels(self, action):
         return np.array([self.max_v, self.max_omega]) * np.array([
-            [-1, -1],
-            [-1, 0],
-            [-1, 1],
             [0, -1],
             [0, 0],
             [0, 1],
@@ -213,17 +211,28 @@ class FishEnv(gym.Env):
             [1, 0],
             [1, 1]
         ])[action]
+        # return np.array([self.max_v, self.max_omega]) * np.array([
+        #     [-1, -1],
+        #     [-1, 0],
+        #     [-1, 1],
+        #     [0, -1],
+        #     [0, 0],
+        #     [0, 1],
+        #     [1, -1],
+        #     [1, 0],
+        #     [1, 1]
+        # ])[action]
 
     def step(self, action):
         truncated = False
         if self.type == "sim":
-            self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, **self.attrs["dynamics"])
+            self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, self.attrs["dynamics"])
         else:
             t, self._agent = self._rl_controller.get_robot_state()
             if time.time() - t > self.attrs["robot_detection_timeout"]:
                 print("Episode truncated because robot was not detected")
                 truncated = True
-            _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, **self.attrs["dynamics"])
+            _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, self.attrs["dynamics"])
             self._rl_controller.command_vels(*self._action_to_vels(action))
 
         reward, terminated = self._get_reward(self._agent, self._fish)
@@ -456,7 +465,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     a = np.array([0, 0], dtype=np.int32)
-    a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
+    # a_map = {-1: {-1: 0, 0: 1, 1: 2}, 0: {-1: 3, 0: 4, 1: 5}, 1: {-1: 6, 0: 7, 1: 8}}
+    a_map = {0: {-1: 0, 0: 1, 1: 2}, 1: {-1: 3, 0: 4, 1: 5}}
     env = FishEnv(args.name, seed=args.seed, render_mode=args.render_mode)
 
     def register_input():
@@ -469,8 +479,8 @@ if __name__ == "__main__":
                     a[1] = -1
                 if event.key == pygame.K_UP or event.key == pygame.K_w:
                     a[0] = 1
-                if event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                    a[0] = -1
+                # if event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                #     a[0] = -1
                 if event.key == pygame.K_RETURN:
                     restart = True
                 if event.key == pygame.K_ESCAPE:
@@ -495,9 +505,16 @@ if __name__ == "__main__":
     total_reward = 0.0
     steps = 0
     restart = False
+    last_s = None
+    dx = []
+    dy = []
     while True:
         register_input()
         s, r, terminated, truncated, info = env.step(a_map[a[0]][a[1]])
+        if last_s is not None:
+            dx.append(s[0, 0] - last_s[0, 0])
+            dy.append(s[0, 1] - last_s[0, 1])
+        last_s = s
         total_reward += r
         if steps % 200 == 0 or terminated or truncated:
             print("\naction " + str([f"{x:+0.2f}" for x in a]))
@@ -506,3 +523,7 @@ if __name__ == "__main__":
         if terminated or truncated or restart or quit:
             break
     env.close()
+    import matplotlib.pyplot as plt
+    plt.plot(dx)
+    plt.plot(dy)
+    plt.show()

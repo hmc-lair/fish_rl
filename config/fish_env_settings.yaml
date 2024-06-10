@@ -20,9 +20,9 @@ DefaultSim:
     max_lin_v : 0.4  # linear velocity in m/s
     max_ang_v : 3.1415  # angular velocity in rad/s
     lin_acc : 0.8  # linear acceleration in m/s^2
-    ang_acc : 6.28  # angular acceleration in rad/s^2
+    ang_acc : 12.5663  # angular acceleration in rad/s^2
     fish_lin_v : 8.0  # multiplicative factor on the force that drives the fish
-    fish_ang_v: 6.2831  # max offset of the driving force from the fish heading
+    fish_ang_v: 31.415  # max offset of the driving force from the fish heading
     fish_drag_coef: 2.0  # coefficient of drag to apply to the fish
     wall_force : 0.001  # multiplicative factor on the force that pushes the fish from the walls
     inter_force : 0.001  # multiplicative factor on the force that pushes the fish from each other

@@ -4,6 +4,7 @@ import pdb
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.animation as animation
+from numba import jit
 
 def wrap_to(theta, center=0, range=2*np.pi):
     '''Wrap to center-range/2, center+range/2'''
@@ -56,7 +57,7 @@ def init(bounds, n_fish, rng, init_bounds=None):
 
     return robot, fish
 
-def update(bounds, rng, robot, fish, action, dt, **kwargs):
+def update(bounds, rng, robot, fish, action, dt, dynamics):
     # Calculate forces from other fish
     # Force between fish: 1/r
     x, y, theta, v, omega = fish.T
@@ -69,19 +70,19 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
                 [robot[:2]]
             ]),
             lines_from_bounds(bounds),
-            c_p=np.array([kwargs["inter_force"] / (len(fish) ** 2)] * len(fish) + [kwargs["robot_force"]]),
-            c_l=kwargs["wall_force"]
+            c_p=np.array([dynamics["inter_force"] / (len(fish) ** 2)] * len(fish) + [dynamics["robot_force"]]),
+            c_l=dynamics["wall_force"]
             # c_p=np.array([1] * len(fish) + [-1])
         )
     else:
         forces = np.zeros((0, 2))
 
     # Generate random forces to push the fish with, in the direction that it is moving
-    rand_theta = theta + rng.uniform(-kwargs["fish_ang_v"] * dt, kwargs["fish_ang_v"] * dt, len(fish))
-    forces += kwargs["fish_lin_v"] * dt * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
+    rand_theta = theta + rng.uniform(-dynamics["fish_ang_v"] * dt, dynamics["fish_ang_v"] * dt, len(fish))
+    forces += dynamics["fish_lin_v"] * dt * np.stack([np.cos(rand_theta), np.sin(rand_theta)]).T
 
     # Add drag to oppose the fish movement
-    forces += kwargs["fish_drag_coef"] * v.reshape(-1, 1) * -np.stack([np.cos(theta), np.sin(theta)]).T
+    forces += dynamics["fish_drag_coef"] * v.reshape(-1, 1) * -np.stack([np.cos(theta), np.sin(theta)]).T
 
     vx = v * np.cos(theta)
     vy = v * np.sin(theta)
@@ -104,10 +105,10 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
 
     # Update the robot according to the action
     # v_des, omega_des = action
-    if "lin_acc" in kwargs:
+    if "lin_acc" in dynamics:
         x, y, theta, *actual_vel = robot
         actual_vel = np.array(actual_vel)
-        actual_acc = np.array([kwargs["lin_acc"], kwargs["ang_acc"]])
+        actual_acc = np.array([dynamics["lin_acc"], dynamics["ang_acc"]])
 
         # Compare incoming
         direction = np.sign(actual_vel - action)
@@ -125,8 +126,20 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
             y_f = y_c - v/omega * np.cos(theta + omega * dt)
 
         # Confine the robot to the bounds
-        x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
-        y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
+        if x_f <= bounds[0, 0]:
+            x_f = bounds[0, 0]
+            y_f = y
+        if bounds[1, 0] <= x_f:
+            x_f = bounds[1, 0]
+            y_f = y
+        if y_f <= bounds[0, 1]:
+            x_f = x
+            y_f = bounds[0, 1]
+        if bounds[1, 1] <= y_f:
+            x_f = x
+            y_f = bounds[1, 1]
+        # x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
+        # y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
 
         theta_f = wrap_to_pi(theta + omega * dt)
         v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
