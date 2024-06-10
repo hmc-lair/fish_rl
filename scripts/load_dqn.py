@@ -41,5 +41,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--render_mode", type=str, default="human", help="how to render the environment")
     args = parser.parse_args()
     args = parser.parse_args()
-    policy_net = torch.load(args.filepath)
+    device = torch.device('cpu')
+    policy_net = torch.load(args.filepath, map_location=device)
+    #policy_net = torch.load(args.filepath)
     show_episode(policy_net, args.name, args.render_mode)

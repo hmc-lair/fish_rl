@@ -129,13 +129,13 @@ def update(bounds, rng, robot, fish, action, dt, dynamics):
         if x_f <= bounds[0, 0]:
             x_f = bounds[0, 0]
             y_f = y
-        if bounds[1, 0] <= x_f:
+        if x_f >= bounds[1, 0]:
             x_f = bounds[1, 0]
             y_f = y
         if y_f <= bounds[0, 1]:
             x_f = x
             y_f = bounds[0, 1]
-        if bounds[1, 1] <= y_f:
+        if y_f >= bounds[1, 1]:
             x_f = x
             y_f = bounds[1, 1]
         # x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])

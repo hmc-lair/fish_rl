@@ -7,6 +7,9 @@ WHEEL_SEPARATION: 109.4
 # Maximum radians per second
 WHEEL_OMEGA_MAX: 12.56637  # 2 RPS = 4 * pi
 
+WIDTH: 119.5 #MM 
+LENGTH: 143.0 #MM
+
 # Maximum linear velocity
 V_MAX: 0.2  # actual max is 0.4147
 
