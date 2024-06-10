@@ -4,7 +4,7 @@ import pdb
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.animation as animation
-from numba import jit
+# from numba import jit
 
 def wrap_to(theta, center=0, range=2*np.pi):
     '''Wrap to center-range/2, center+range/2'''
@@ -143,7 +143,7 @@ def update(bounds, rng, robot, fish, action, dt, dynamics):
 
         theta_f = wrap_to_pi(theta + omega * dt)
         v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
-        robot_f = np.array([x_f, y_f, theta_f, v, omega])
+        robot_f = np.array([x_f, y_f, theta_f, v_f, omega])
     else:
         robot_f = robot
     return robot_f, fish_f
