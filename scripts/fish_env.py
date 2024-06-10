@@ -365,48 +365,48 @@ class FishEnv(gym.Env):
                 width=2
             )
         
-        if len(self._fish) >= 2:
-            cov = np.cov(self._fish[:, :2].T)
-            l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            if cov[0][1] == 0:
-                if cov[0][0] >= cov[1][1]:
-                    theta = 0
-                else:
-                    theta = np.pi / 2
-            else:
-                theta = np.arctan2(l1 - cov[0][0], cov[0][1])
-            x = np.average(self._fish[:, 0])
-            y = np.average(self._fish[:, 1])
-            w = 2 * np.sqrt(l1)  # 1st standard deviation
-            h = 2 * np.sqrt(l2)
-            target_rect = pygame.Rect([
-                *self._to_window_coords([x-w/2, y+h/2]),
-                *self._scale_to_window([w, h])
-            ])
-            shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
-            pygame.draw.ellipse(
-                shape_surf,
-                (255, 0, 0),
-                [0, 0, *target_rect.size],
-                3
-            )
-            pygame.draw.line(
-                shape_surf,
-                (255, 0, 0),
-                [target_rect.size[0] / 2, 0],
-                [target_rect.size[0] / 2, target_rect.size[1]],
-                3
-            )
-            pygame.draw.line(
-                shape_surf,
-                (255, 0, 0),
-                [0, target_rect.size[1] / 2],
-                [target_rect.size[0], target_rect.size[1] / 2],
-                3
-            )
-            rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
-            canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
+        # if len(self._fish) >= 2:
+        #     cov = np.cov(self._fish[:, :2].T)
+        #     l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     if cov[0][1] == 0:
+        #         if cov[0][0] >= cov[1][1]:
+        #             theta = 0
+        #         else:
+        #             theta = np.pi / 2
+        #     else:
+        #         theta = np.arctan2(l1 - cov[0][0], cov[0][1])
+        #     x = np.average(self._fish[:, 0])
+        #     y = np.average(self._fish[:, 1])
+        #     w = 2 * np.sqrt(l1)  # 1st standard deviation
+        #     h = 2 * np.sqrt(l2)
+        #     target_rect = pygame.Rect([
+        #         *self._to_window_coords([x-w/2, y+h/2]),
+        #         *self._scale_to_window([w, h])
+        #     ])
+        #     shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
+        #     pygame.draw.ellipse(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [0, 0, *target_rect.size],
+        #         3
+        #     )
+        #     pygame.draw.line(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [target_rect.size[0] / 2, 0],
+        #         [target_rect.size[0] / 2, target_rect.size[1]],
+        #         3
+        #     )
+        #     pygame.draw.line(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [0, target_rect.size[1] / 2],
+        #         [target_rect.size[0], target_rect.size[1] / 2],
+        #         3
+        #     )
+        #     rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
+        #     canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
 
         # Draw the agent
         pygame.draw.circle(
