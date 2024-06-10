@@ -44,11 +44,11 @@ class VideoProcessor:
 
         lure_hsv =cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             #40, 45, 81
-        # lower_blue = np.array([100,50,120], dtype = "uint8")  # 100, 50, 0
-        # upper_blue = np.array([140,255,255], dtype = "uint8")  # 140, 255, 255
+        lower_blue = np.array([100,50,120], dtype = "uint8")  # 100, 50, 0
+        upper_blue = np.array([140,255,255], dtype = "uint8")  # 140, 255, 255
 
-        lower_blue = np.array([0,0,0], dtype = "uint8")  # 100, 50, 0
-        upper_blue = np.array([210,90,90], dtype = "uint8")  # 140, 255, 255
+        # lower_blue = np.array([0,0,0], dtype = "uint8")  # 100, 50, 0
+        # upper_blue = np.array([210,90,90], dtype = "uint8")  # 140, 255, 255
 
         lure_mask=cv2.inRange(lure_hsv,lower_blue,upper_blue)
         kernellure = np.ones((10,10),np.uint8)

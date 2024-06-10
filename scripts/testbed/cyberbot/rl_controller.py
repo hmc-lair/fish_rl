@@ -17,6 +17,13 @@ class RLController():
             self._params = yaml.safe_load(f)
         self._wheel_separation = self._params["WHEEL_SEPARATION"] / 1000
         self._wheel_radius = self._params["WHEEL_RADIUS"] / 1000
+        self._width = self._params["WIDTH"] / 1000
+        self._length = self._params["LENGTH"] / 1000
+
+        self._fishtank_bounds = (self._video._bounds - self._video._bounds[0]) * self._video._calibration_params["METERS_PER_PIXEL"]
+        margin = max(self._width, self._length)
+        self._reachable_range = np.stack([self._fishtank_bounds[0] + margin, self._fishtank_bounds[1] - margin])
+
         self.reset()
 
     def reset(self):
@@ -62,6 +69,31 @@ class RLController():
 
     def command_vels(self, v, omega):
         """Send a linear and angular velocity command to the robot"""
+
+        #cap linear velocity
+        heading = self._state[2]
+        v_vec = np.array([np.cos(heading),  np.sin(heading)]) * v
+
+        if self._state[0] <= self._reachable_range[0][0]:
+            print("Left wall")
+            if v_vec @ np.array([1,0]) < 0: #facing into wall on left
+                v = -self._state[3]
+        
+        if self._state[0] >= self._reachable_range[1][0]:
+            print("Right Wall")
+            if v_vec @ np.array([-1, 0]) < 0: #facing right wall
+                v = -self._state[3]
+        
+        if self._state[1] <= self._reachable_range[0][1]:
+            print("Bottom Wall")
+            if v_vec @ np.array([0, 1]) < 0: #facing into wall on left
+                v = -self._state[3]
+        
+        if self._state[1] >= self._reachable_range[1][1]:
+            print("Top Wall")
+            if v_vec @ np.array([0, -1]) < 0: #facing into wall on left
+                v = -self._state[3]
+
         self.send_commands(*self._get_wheel_vels(v, omega))
     
     def get_robot_state(self):

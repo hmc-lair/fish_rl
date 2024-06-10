@@ -156,7 +156,7 @@ DefaultReal:
     robot_force : 0.001  # multiplicative factor on the force that pushes the fish from the robot
 
   transmitter_port: /dev/ttyACM0
-  camera_port: 2
+  camera_port: 0
   camera_calibration_path: ../config/calibration.yaml
   robot_params_path: ../config/robot.yaml
   robot_detection_timeout: 1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
@@ -177,21 +177,67 @@ DefaultReal:
       max_omega: 0
       min_omega: 0
 
-FollowFishReal:
+# Environment in which the robot must reach a target somewhere in bounds
+GoToTargetReal:
   from: DefaultReal
-  n_fish: 1
+  max_episode_steps: 200
 
-  camera_calibration_path: ../config/calibration_keck.yaml
+# Robot must reach the corner
+GoToCornerDistanceReal:
+  from: GoToTargetReal
+  reward:
+    type: distance
+    target: [0, 0]
+
+GoToCornerRadiusReal:
+  from: GoToCornerDistanceReal
+  reward:
+    type: radius
+    radius: 0.05
+    target: [0, 0]
+
+# Robot must reach a random fish
+GoToFishDistanceReal:
+  from: GoToTargetReal
+  n_fish: 1
 
   reward:
     type: distance
     target: fish
 
   dynamics:
-    max_lin_v: 0.2
-    max_ang_v: 3.1415
     fish_lin_v : 0.0
     fish_ang_v: 0.0
     wall_force : 0.0
     inter_force : 0.0
     robot_force : 0.0
+
+GoToFishRadiusReal:
+  from: GoToFishDistanceReal
+  reward:
+    type: radius  # Gets a fixed reward when it enters the radius around the target
+    radius: 0.05  # The radius in meters
+    target: fish
+
+DistBkwdCostReal:
+  from: GoToFishDistanceReal
+  reward:
+    backwards_penalty: 0.2
+
+RadBkwdCostReal:
+  from: GoToFishRadiusReal
+  reward:
+    backwards_penalty: 0.002
+
+FollowFishReal:
+  from: DefaultReal
+  n_fish: 1
+
+  max_episode_steps: 1000
+
+  reward:
+    type: distance
+    target: fish
+  
+  dynamics:
+    robot_force: 0.0

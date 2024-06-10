@@ -125,8 +125,20 @@ def update(bounds, rng, robot, fish, action, dt, **kwargs):
             y_f = y_c - v/omega * np.cos(theta + omega * dt)
 
         # Confine the robot to the bounds
-        x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
-        y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
+        if x_f <= bounds[0, 0]:
+            x_f = bounds[0, 0]
+            y_f = y
+        if x_f >= bounds[1, 0]:
+            x_f = bounds[1, 0]
+            y_f = y
+        if y_f <= bounds[0, 1]:
+            x_f = x
+            y_f = bounds[0, 1]
+        if y_f >= bounds[1, 1]:
+            x_f = x
+            y_f = bounds[1, 1]
+        # x_f = np.maximum(np.minimum(x_f, bounds[1, 0]), bounds[0, 0])
+        # y_f = np.maximum(np.minimum(y_f, bounds[1, 1]), bounds[0, 1])
 
         theta_f = wrap_to_pi(theta + omega * dt)
         v_f = np.sqrt(np.sum(np.square([x_f - x, y_f - y]))) / dt
