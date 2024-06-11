@@ -228,8 +228,9 @@ class FishEnv(gym.Env):
         if self.type == "sim":
             self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, self.attrs["dynamics"])
         else:
+            self._rl_controller.step()
             t, self._agent = self._rl_controller.get_robot_state()
-            if time.time() - t > self.attrs["robot_detection_timeout"]:
+            if self.attrs["robot_detection_timeout"] > 0 and time.time() - t > self.attrs["robot_detection_timeout"]:
                 print("Episode truncated because robot was not detected")
                 truncated = True
             _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, self.attrs["dynamics"])
@@ -289,7 +290,10 @@ class FishEnv(gym.Env):
             self._rl_controller.reset()
             self._agent = None
             start_time = time.time()
-            while self._agent is None and (time.time() - start_time) < 10:
+            if self.attrs["robot_detection_reset_timeout"] < 0:
+                self._rl_controller.init_state(np.zeros(5))
+                _, self._agent = self._rl_controller.get_robot_state()
+            while self._agent is None and (time.time() - start_time) < self.attrs["robot_detection_reset_timeout"]:
                 _, self._agent = self._rl_controller.get_robot_state()
             if self._agent is None:
                 raise ValueError("Timed out while trying to detect robot")

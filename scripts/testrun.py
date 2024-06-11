@@ -131,6 +131,7 @@ if __name__ == "__main__":
     # Run state machine
     sm.start()
     while sm.is_running():
+        c.step()
         commanded_vels = np.array([0, 0], dtype=np.float64)
         _, current_robot_state = c.get_robot_state()
         x, y, theta, v, omega = current_robot_state

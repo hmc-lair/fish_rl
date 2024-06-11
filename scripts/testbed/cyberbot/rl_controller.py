@@ -31,6 +31,12 @@ class RLController():
         self._state = None
         self._video.reset()
 
+    def init_state(self, state):
+        self._state = state
+
+    def step(self):
+        self._video.step()
+
     def _get_wheel_vels(self, v, omega):
         """Convert linear and angular velocity command to wheel velocities"""
         if omega == 0:
@@ -75,22 +81,22 @@ class RLController():
         v_vec = np.array([np.cos(heading),  np.sin(heading)]) * v
 
         if self._state[0] <= self._reachable_range[0][0]:
-            print("Left wall")
+            # print("Left wall")
             if v_vec @ np.array([1,0]) < 0: #facing into wall on left
                 v = -self._state[3]
         
         if self._state[0] >= self._reachable_range[1][0]:
-            print("Right Wall")
+            # print("Right Wall")
             if v_vec @ np.array([-1, 0]) < 0: #facing right wall
                 v = -self._state[3]
         
         if self._state[1] <= self._reachable_range[0][1]:
-            print("Bottom Wall")
+            # print("Bottom Wall")
             if v_vec @ np.array([0, 1]) < 0: #facing into wall on left
                 v = -self._state[3]
         
         if self._state[1] >= self._reachable_range[1][1]:
-            print("Top Wall")
+            # print("Top Wall")
             if v_vec @ np.array([0, -1]) < 0: #facing into wall on left
                 v = -self._state[3]
 

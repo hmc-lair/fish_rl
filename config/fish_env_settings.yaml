@@ -156,11 +156,11 @@ DefaultReal:
     robot_force : 0.001  # multiplicative factor on the force that pushes the fish from the robot
 
   transmitter_port: /dev/ttyACM0
-  camera_port: 0
+  camera_port: 2
   camera_calibration_path: ../config/calibration.yaml
   robot_params_path: ../config/robot.yaml
-  robot_detection_timeout: 1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
-  robot_detection_reset_timeout: 10  # If while resetting the episode the robot is not detected for this number of seconds, an error is raised
+  robot_detection_timeout: -1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
+  robot_detection_reset_timeout: -1  # If while resetting the episode the robot is not detected for this number of seconds, an error is raised
 
   # The robot and fish states are initialized by drawing uniformly randomly from these bounds
   # Initialization bounds for x and y are given as percentages of the environment's bounds
