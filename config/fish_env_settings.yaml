@@ -126,6 +126,34 @@ FollowFishSim:
   dynamics:
     robot_force: 0.0
 
+Herd1FishHalf:
+  from: DefaultSim
+  n_fish: 1
+
+  max_episode_steps: 200
+
+  # dynamics:
+  #   fish_lin_v : 0.0
+  #   fish_ang_v: 0.0
+  #   wall_force : 0.0
+  #   inter_force : 0.0
+  #   robot_force : 0.0
+
+  # init_bounds:
+  #   fish:
+  #     max_x: 0.75
+  #     min_x: 0.75
+  #     max_y: 0.5
+  #     min_y: 0.5
+
+  reward:
+    type: count
+    bounds:
+      maxx: 0.5
+      minx: 0
+      maxy: 1
+      miny: 0
+
 ################################################################### Real Environments ###################################################################
 
 DefaultReal:

@@ -92,6 +92,10 @@ class FishEnv(gym.Env):
         # self.action_space = spaces.Discrete(9)
         self.action_space = spaces.Discrete(6)
 
+        # Implement a time limit
+        self._max_episode_steps = self.attrs.get("max_episode_steps", None)
+        self._elapsed_steps = None
+
         # Create the reward function using the settings in the yaml file
         if "reward" not in self.attrs or self.attrs["reward"] is None:
             if "reward" not in self.attrs:
@@ -121,6 +125,18 @@ class FishEnv(gym.Env):
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
                 else:
                     raise ValueError(f"Unknown target: {reward_params['target']}")
+            elif reward_params["type"] == "count":
+                assert "bounds" in reward_params
+                assert self._max_episode_steps is not None
+                w, h = self.maxx - self.minx, self.maxy - self.miny
+                herding_bounds = np.array([
+                    [reward_params["bounds"]["minx"], reward_params["bounds"]["miny"]],
+                    [reward_params["bounds"]["maxx"], reward_params["bounds"]["maxy"]]
+                ]) * np.array([w, h]) + np.array([self.minx, self.miny])
+                self._get_reward = lambda agent, fish: (np.sum(
+                    (herding_bounds[0, 0] <= fish[:, 0]) & (fish[:, 0] <= herding_bounds[1, 0]) & \
+                    (herding_bounds[0, 1] <= fish[:, 1]) & (fish[:, 1] <= herding_bounds[1, 1])
+                ), False) if self._elapsed_steps == self._max_episode_steps - 1 else (0, False)
             else:
                 raise ValueError(f"Unknown reward type: {reward_params['type']}")
 
@@ -134,10 +150,6 @@ class FishEnv(gym.Env):
                     else:
                         return reward, truncated
                 self._get_reward = wrapper
-
-
-        self._max_episode_steps = self.attrs.get("max_episode_steps", None)
-        self._elapsed_steps = None
 
         """
         If human-rendering is used, `self.window` will be a reference
