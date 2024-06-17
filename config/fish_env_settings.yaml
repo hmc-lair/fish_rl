@@ -4,7 +4,7 @@ DefaultSim:
   type: sim
 
   # Number of fish to simulate
-  n_fish: 0
+  n_fish: 2
 
   # Type of reward function. If null, no reward is given at any time
   reward: null
@@ -18,9 +18,9 @@ DefaultSim:
   # Physics parameters
   dynamics:
     max_lin_v : 0.4  # linear velocity in m/s
-    max_ang_v : 3.1415  # angular velocity in rad/s
+    max_ang_v : 6.2831  # angular velocity in rad/s
     lin_acc : 0.8  # linear acceleration in m/s^2
-    ang_acc : 12.5663  # angular acceleration in rad/s^2
+    ang_acc : 25.1326  # angular acceleration in rad/s^2
     fish_lin_v : 8.0  # multiplicative factor on the force that drives the fish
     fish_ang_v: 31.415  # max offset of the driving force from the fish heading
     fish_drag_coef: 2.0  # coefficient of drag to apply to the fish
@@ -126,6 +126,34 @@ FollowFishSim:
   dynamics:
     robot_force: 0.0
 
+Herd1FishHalf:
+  from: DefaultSim
+  n_fish: 1
+
+  max_episode_steps: 200
+
+  # dynamics:
+  #   fish_lin_v : 0.0
+  #   fish_ang_v: 0.0
+  #   wall_force : 0.0
+  #   inter_force : 0.0
+  #   robot_force : 0.0
+
+  # init_bounds:
+  #   fish:
+  #     max_x: 0.75
+  #     min_x: 0.75
+  #     max_y: 0.5
+  #     min_y: 0.5
+
+  reward:
+    type: count
+    bounds:
+      maxx: 0.5
+      minx: 0
+      maxy: 1
+      miny: 0
+
 ################################################################### Real Environments ###################################################################
 
 DefaultReal:
@@ -156,11 +184,11 @@ DefaultReal:
     robot_force : 0.001  # multiplicative factor on the force that pushes the fish from the robot
 
   transmitter_port: /dev/ttyACM0
-  camera_port: 0
+  camera_port: 2
   camera_calibration_path: ../config/calibration.yaml
   robot_params_path: ../config/robot.yaml
-  robot_detection_timeout: 1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
-  robot_detection_reset_timeout: 10  # If while resetting the episode the robot is not detected for this number of seconds, an error is raised
+  robot_detection_timeout: -1  # If during the episode the robot is not detected for this number of seconds, the episode is truncated
+  robot_detection_reset_timeout: -1  # If while resetting the episode the robot is not detected for this number of seconds, an error is raised
 
   # The robot and fish states are initialized by drawing uniformly randomly from these bounds
   # Initialization bounds for x and y are given as percentages of the environment's bounds

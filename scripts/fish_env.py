@@ -92,6 +92,10 @@ class FishEnv(gym.Env):
         # self.action_space = spaces.Discrete(9)
         self.action_space = spaces.Discrete(6)
 
+        # Implement a time limit
+        self._max_episode_steps = self.attrs.get("max_episode_steps", None)
+        self._elapsed_steps = None
+
         # Create the reward function using the settings in the yaml file
         if "reward" not in self.attrs or self.attrs["reward"] is None:
             if "reward" not in self.attrs:
@@ -121,6 +125,18 @@ class FishEnv(gym.Env):
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
                 else:
                     raise ValueError(f"Unknown target: {reward_params['target']}")
+            elif reward_params["type"] == "count":
+                assert "bounds" in reward_params
+                assert self._max_episode_steps is not None
+                w, h = self.maxx - self.minx, self.maxy - self.miny
+                herding_bounds = np.array([
+                    [reward_params["bounds"]["minx"], reward_params["bounds"]["miny"]],
+                    [reward_params["bounds"]["maxx"], reward_params["bounds"]["maxy"]]
+                ]) * np.array([w, h]) + np.array([self.minx, self.miny])
+                self._get_reward = lambda agent, fish: (np.sum(
+                    (herding_bounds[0, 0] <= fish[:, 0]) & (fish[:, 0] <= herding_bounds[1, 0]) & \
+                    (herding_bounds[0, 1] <= fish[:, 1]) & (fish[:, 1] <= herding_bounds[1, 1])
+                ), False) if self._elapsed_steps == self._max_episode_steps - 1 else (0, False)
             else:
                 raise ValueError(f"Unknown reward type: {reward_params['type']}")
 
@@ -134,10 +150,6 @@ class FishEnv(gym.Env):
                     else:
                         return reward, truncated
                 self._get_reward = wrapper
-
-
-        self._max_episode_steps = self.attrs.get("max_episode_steps", None)
-        self._elapsed_steps = None
 
         """
         If human-rendering is used, `self.window` will be a reference
@@ -228,8 +240,9 @@ class FishEnv(gym.Env):
         if self.type == "sim":
             self._agent, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, self._action_to_vels(action), self.dt, self.attrs["dynamics"])
         else:
+            self._rl_controller.step()
             t, self._agent = self._rl_controller.get_robot_state()
-            if time.time() - t > self.attrs["robot_detection_timeout"]:
+            if self.attrs["robot_detection_timeout"] > 0 and time.time() - t > self.attrs["robot_detection_timeout"]:
                 print("Episode truncated because robot was not detected")
                 truncated = True
             _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, self.attrs["dynamics"])
@@ -289,7 +302,10 @@ class FishEnv(gym.Env):
             self._rl_controller.reset()
             self._agent = None
             start_time = time.time()
-            while self._agent is None and (time.time() - start_time) < 10:
+            if self.attrs["robot_detection_reset_timeout"] < 0:
+                self._rl_controller.init_state(np.zeros(5))
+                _, self._agent = self._rl_controller.get_robot_state()
+            while self._agent is None and (time.time() - start_time) < self.attrs["robot_detection_reset_timeout"]:
                 _, self._agent = self._rl_controller.get_robot_state()
             if self._agent is None:
                 raise ValueError("Timed out while trying to detect robot")
@@ -365,48 +381,48 @@ class FishEnv(gym.Env):
                 width=2
             )
         
-        if len(self._fish) >= 2:
-            cov = np.cov(self._fish[:, :2].T)
-            l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-            if cov[0][1] == 0:
-                if cov[0][0] >= cov[1][1]:
-                    theta = 0
-                else:
-                    theta = np.pi / 2
-            else:
-                theta = np.arctan2(l1 - cov[0][0], cov[0][1])
-            x = np.average(self._fish[:, 0])
-            y = np.average(self._fish[:, 1])
-            w = 2 * np.sqrt(l1)  # 1st standard deviation
-            h = 2 * np.sqrt(l2)
-            target_rect = pygame.Rect([
-                *self._to_window_coords([x-w/2, y+h/2]),
-                *self._scale_to_window([w, h])
-            ])
-            shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
-            pygame.draw.ellipse(
-                shape_surf,
-                (255, 0, 0),
-                [0, 0, *target_rect.size],
-                3
-            )
-            pygame.draw.line(
-                shape_surf,
-                (255, 0, 0),
-                [target_rect.size[0] / 2, 0],
-                [target_rect.size[0] / 2, target_rect.size[1]],
-                3
-            )
-            pygame.draw.line(
-                shape_surf,
-                (255, 0, 0),
-                [0, target_rect.size[1] / 2],
-                [target_rect.size[0], target_rect.size[1] / 2],
-                3
-            )
-            rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
-            canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
+        # if len(self._fish) >= 2:
+        #     cov = np.cov(self._fish[:, :2].T)
+        #     l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
+        #     if cov[0][1] == 0:
+        #         if cov[0][0] >= cov[1][1]:
+        #             theta = 0
+        #         else:
+        #             theta = np.pi / 2
+        #     else:
+        #         theta = np.arctan2(l1 - cov[0][0], cov[0][1])
+        #     x = np.average(self._fish[:, 0])
+        #     y = np.average(self._fish[:, 1])
+        #     w = 2 * np.sqrt(l1)  # 1st standard deviation
+        #     h = 2 * np.sqrt(l2)
+        #     target_rect = pygame.Rect([
+        #         *self._to_window_coords([x-w/2, y+h/2]),
+        #         *self._scale_to_window([w, h])
+        #     ])
+        #     shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
+        #     pygame.draw.ellipse(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [0, 0, *target_rect.size],
+        #         3
+        #     )
+        #     pygame.draw.line(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [target_rect.size[0] / 2, 0],
+        #         [target_rect.size[0] / 2, target_rect.size[1]],
+        #         3
+        #     )
+        #     pygame.draw.line(
+        #         shape_surf,
+        #         (255, 0, 0),
+        #         [0, target_rect.size[1] / 2],
+        #         [target_rect.size[0], target_rect.size[1] / 2],
+        #         3
+        #     )
+        #     rotated_surf = pygame.transform.rotate(shape_surf, theta * 180 / np.pi)
+        #     canvas.blit(rotated_surf, rotated_surf.get_rect(center=target_rect.center))
 
         # Draw the agent
         pygame.draw.circle(
