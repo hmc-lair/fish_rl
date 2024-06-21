@@ -1,6 +1,7 @@
 
 import numpy as np
 import cv2
+import datetime
 try:
     from .calibration import load_calibration_params, apply_calibration, undistort_and_warp
 except:
@@ -13,8 +14,8 @@ class VideoProcessor:
         self._camera_port = camera_port
         self._calibration_params = load_calibration_params(calibration_path)
         self._bounds = self._calibration_params["CAMERA_BOUNDS"]
-        self._height = self._bounds[1,1] - self._bounds[0,1]
-        self._width = self._bounds[1,0] - self._bounds[0,0]
+        self._height = self._bounds[1, 1] - self._bounds[0, 1]
+        self._width = self._bounds[1, 0] - self._bounds[0, 0]
         self.render_mode = render_mode
         self.use_pygame = use_pygame
 

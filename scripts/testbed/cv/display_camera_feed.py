@@ -98,12 +98,14 @@ if __name__ == "__main__":
         description="Display a camera feed. Press esc to quit",
         epilog="To find which cameras are available, run `ls /dev | grep video` or `v4l2-ctl --list-devices`"
     )
-    parser.add_argument("port_number", type=int)
+    parser.add_argument("port_number")
     parser.add_argument("-f", "--fps", default=0, type=int, help="target FPS. Enter 0 to remove the scheduled delay between frames entirely")
     parser.add_argument("-l", "--headless", action="store_true", help="run without rendering the camera feed")
     parser.add_argument("-c", "--calibration", help="file containing calibration parameters")
     args = parser.parse_args()
-    
+    args.port_number = int(args.port_number) if str.isdigit(args.port_number) else args.port_number
+    print(args)
+
     calibration_params = None
     if args.calibration is not None:
         calibration_params = load_calibration_params(args.calibration)
