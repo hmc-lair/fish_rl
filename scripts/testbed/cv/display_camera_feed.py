@@ -104,7 +104,6 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--calibration", help="file containing calibration parameters")
     args = parser.parse_args()
     args.port_number = int(args.port_number) if str.isdigit(args.port_number) else args.port_number
-    print(args)
 
     calibration_params = None
     if args.calibration is not None:
