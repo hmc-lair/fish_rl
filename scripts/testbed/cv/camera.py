@@ -7,13 +7,27 @@ except:
     from calibration import load_calibration_params, apply_calibration, undistort_and_warp
 import argparse
 from datetime import datetime
+import yaml
 
 class VideoProcessor:
-    """Class to handle video processing, displaying, CV, etc."""
+    """
+    Class to handle video processing, displaying, CV, etc.
+    """
 
-    def __init__(self, camera_port, calibration_path, n_fish=0, render_mode=None, use_pygame=False):
+    def __init__(self, camera_port, calibration_path, object_detection_path, n_fish=0, render_mode=None, use_pygame=False):
+        """
+        Params:
+            camera_port             - port for the camera used for robot and fish tracking. Can be an int or a string as with cv2.VideoCapture
+            calibration_path        - path to yaml file containing camera parameters
+            object_detection_path   - path to yaml file containing parameters used in the fish tracking and lure tracking piplines
+            n_fish                  - the number of fish to look for
+            render_mode             - 'camera' for the camera feed, 'threshold' for the view of the objects
+            use_pygame              - If true, then whatever is using the object (probably FishEnv) should render the frame with pygame. Otherwise, the frame is rendered with opencv
+        """
         self._camera_port = camera_port
         self._calibration_params = load_calibration_params(calibration_path)
+        with open(object_detection_path, "r") as f:
+            self._object_detection_params = yaml.safe_load(f)
         self._bounds = self._calibration_params["CAMERA_BOUNDS"]
         self._height = self._bounds[1, 1] - self._bounds[0, 1]
         self._width = self._bounds[1, 0] - self._bounds[0, 0]
@@ -34,6 +48,9 @@ class VideoProcessor:
         self.step()
 
     def step(self):
+        '''
+        Read a frame from the camera and extract lure and video
+        '''
         ret, raw_frame = self._cap.read()
         if not ret:
             raise ValueError("Could not read from camera")
@@ -42,9 +59,9 @@ class VideoProcessor:
         self.render_frame = self.frame.copy()
 
         new_lure_coords = self._get_lure_coords(self.frame)
-        # if new_lure_coords is not None:
         self._lure_coords = new_lure_coords
 
+        # Add circles over the positions of the lure and the fish
         if self.render_mode in ["camera", "threshold"]:
             if self._lure_coords is not None:
                 cv2.circle(self.render_frame, self._lure_coords[0], 5, (255, 0, 0), -1)
@@ -59,16 +76,16 @@ class VideoProcessor:
         '''
         Returns the coordinates (in pixels) of the lure's head and tail
         '''
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 40)
+        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 40)
 
-        hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
-        lower_blue = np.array([100, 50, 50], dtype = "uint8")  # 100, 50, 0
-        upper_blue = np.array([140, 255, 255], dtype = "uint8")  # 140, 255, 255
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower_blue = np.array(self._object_detection_params["lure"]["hsv_threshold"]["lower"], dtype = "uint8")  # 100, 50, 0
+        upper_blue = np.array(self._object_detection_params["lure"]["hsv_threshold"]["lower"], dtype = "uint8")  # 140, 255, 255
         color_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
         # Apply morphological operations to remove small noise and lines
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, self._object_detection_params["lure"]["kernel_size"])
         morphed = cv2.morphologyEx(color_mask, cv2.MORPH_OPEN, kernel)
         morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
         
@@ -76,6 +93,7 @@ class VideoProcessor:
         contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)  # Sort by area
 
+        # Extract the coordinates of the contours
         if len(contours) < 2:
             coords = None
         else:
@@ -87,9 +105,6 @@ class VideoProcessor:
                     cX = int(M["m10"] / M["m00"])
                     cY = int(M["m01"] / M["m00"])
                     coords[i] = [cX, cY]
-
-        # self.render_frame = cv2.cvtColor(morphed, cv2.COLOR_GRAY2BGR)
-
         return coords
 
     # def get_coords(self, num_objects, offset=0):

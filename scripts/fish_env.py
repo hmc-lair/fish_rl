@@ -33,8 +33,10 @@ class FishEnv(gym.Env):
             self._rl_controller = RLController(
                 self.attrs["transmitter_port"],
                 self.attrs["camera_port"],
-                self.attrs["camera_calibration_path"],
                 self.attrs["robot_params_path"],
+                self.attrs["camera_calibration_path"],
+                self.attrs["object_detection_path"],
+                self.attrs["n_fish"],
                 render_mode=render_mode,
                 use_pygame=True
             )
@@ -49,8 +51,8 @@ class FishEnv(gym.Env):
         # ])
         if self.type == "sim":
             self.bounds =np.array([
-                [self.attrs['bounds']['min_x'], self.attrs['bounds']['min_y']],
-                [self.attrs['bounds']['max_x'], self.attrs['bounds']['max_y']]
+                [self.attrs["bounds"]["min_x"], self.attrs["bounds"]["min_y"]],
+                [self.attrs["bounds"]["max_x"], self.attrs["bounds"]["max_y"]]
             ])
         else:
             camera_bounds = self._rl_controller._video._bounds
@@ -70,7 +72,7 @@ class FishEnv(gym.Env):
         ])[np.argmin([self.height / self.width, self.width / self.height])] + 2 * self.window_margin
 
         # Number of fish to simulate
-        self.n_fish = self.attrs['n_fish']
+        self.n_fish = self.attrs["n_fish"]
 
         # The observation space gives the state of the agent and the fish
         # (x, y, theta, v, omega)
@@ -83,8 +85,8 @@ class FishEnv(gym.Env):
 
         # An action is a linear and angular velocity command
         if self.type == "sim":
-            self.max_v = self.attrs["dynamics"]['max_lin_v']
-            self.max_omega = self.attrs["dynamics"]['max_ang_v']
+            self.max_v = self.attrs["dynamics"]["max_lin_v"]
+            self.max_omega = self.attrs["dynamics"]["max_ang_v"]
         else:
             self.max_v = self.attrs["dynamics"].get("max_lin_v", self._rl_controller._params["V_MAX"])
             self.max_omega = self.attrs["dynamics"].get("max_ang_v", self._rl_controller._params["OMEGA_MAX"])
@@ -171,23 +173,23 @@ class FishEnv(gym.Env):
         # self.reset(seed=seed)
 
     def _parse_settings(self, name):
-        settings = yaml.safe_load(open(FishEnv.fish_settings_yaml, 'r'))
+        settings = yaml.safe_load(open(FishEnv.fish_settings_yaml, "r"))
         attrs = {}
-        attrs['from'] = name
+        attrs["from"] = name
         encountered_names = set()
 
         # Read in settings for dataset
-        while 'from' in attrs:
-            from_name = attrs['from']
+        while "from" in attrs:
+            from_name = attrs["from"]
             if from_name in encountered_names:
-                raise ValueError('Recursive definition: {} depends on itself'.format(name))
+                raise ValueError("Recursive definition: {} depends on itself".format(name))
             encountered_names.add(name)
             old_attrs = attrs
             attrs = settings[from_name]
 
             # Overwrite attributes in the from dataset with the ones that are present in the top level dataset
             for key, value in old_attrs.items():
-                if not key == 'from':
+                if not key == "from":
                     if key in attrs:
                         # Helper function to merge properties that conflict
                         def helper(parent, key, child):

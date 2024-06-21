@@ -8,11 +8,22 @@ class RLController():
     def wrap_to_pi(x):
         return ((x + np.pi) % (2 * np.pi)) - np.pi
 
-    def __init__(self, transmit_port, camera_port, calibration_path, robot_path, render_mode=None, use_pygame=False):
+    def __init__(self, transmit_port, camera_port, robot_path, calibration_path, object_detection_path, n_fish=0, render_mode=None, use_pygame=False):
+        """
+        Params:
+            transmit_port           - port for the microbit board that transmits commands to the robot's microbit. Ex: /dev/ttyACM0
+            camera_port             - port for the camera used for robot and fish tracking. Can be an int or a string as with cv2.VideoCapture
+            robot_path              - path to yaml file containing robot parameters
+            calibration_path        - path to yaml file containing camera parameters
+            object_detection_path   - path to yaml file containing parameters used in the fish tracking and lure tracking piplines
+            n_fish                  - the number of fish to look for
+            render_mode             - 'camera' for the camera feed, 'threshold' for the view of the objects
+            use_pygame              - If true, then whatever is using the object (probably FishEnv) should render the frame with pygame. Otherwise, the frame is rendered with opencv
+        """
         self._transmit_port = transmit_port
         self._ser = serial.Serial(self._transmit_port, baudrate=115200)
 
-        self._video = camera.VideoProcessor(camera_port, calibration_path, render_mode=render_mode, use_pygame=use_pygame)
+        self._video = camera.VideoProcessor(camera_port, calibration_path, object_detection_path, n_fish=n_fish, render_mode=render_mode, use_pygame=use_pygame)
         with open(robot_path, "r") as f:
             self._params = yaml.safe_load(f)
         self._wheel_separation = self._params["WHEEL_SEPARATION"] / 1000
