@@ -132,20 +132,6 @@ Herd1FishHalf:
 
   max_episode_steps: 200
 
-  # dynamics:
-  #   fish_lin_v : 0.0
-  #   fish_ang_v: 0.0
-  #   wall_force : 0.0
-  #   inter_force : 0.0
-  #   robot_force : 0.0
-
-  # init_bounds:
-  #   fish:
-  #     max_x: 0.75
-  #     min_x: 0.75
-  #     max_y: 0.5
-  #     min_y: 0.5
-
   reward:
     type: count
     bounds:
@@ -153,6 +139,26 @@ Herd1FishHalf:
       minx: 0
       maxy: 1
       miny: 0
+
+GoToHalfContiniousSim:
+  from: Herd1FishHalf
+  reward:
+    type: continious
+    target: [0.0, 0.5]
+  
+  # dynamics:
+  #   fish_lin_v : 0.0
+  #   fish_ang_v: 0.0
+  #   wall_force : 0.0
+  #   inter_force : 0.0
+  #   robot_force : 0.0
+  
+  # init_bounds:
+  #   fish:
+  #     max_x: 0.9
+  #     min_x: 0.9
+  #     max_y: 0.5
+  #     min_y: 0.5
 
 ################################################################### Real Environments ###################################################################
 
