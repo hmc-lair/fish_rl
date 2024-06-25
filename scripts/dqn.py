@@ -52,20 +52,20 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
+        #self.layers = nn.ModuleList([
+        #    nn.Linear(n_observations, 32).double(),
+        #    nn.Linear(32, 64).double(),
+        #    nn.Linear(64, 128).double(),
+        #    nn.Linear(128, 128).double(),
+        #    nn.Linear(128, 64).double(),
+        #    nn.Linear(64, 32).double(),
+        #    nn.Linear(32, n_actions).double()
+        #])
         self.layers = nn.ModuleList([
-            nn.Linear(n_observations, 32).double(),
-            nn.Linear(32, 64).double(),
-            nn.Linear(64, 128).double(),
-            nn.Linear(128, 128).double(),
-            nn.Linear(128, 64).double(),
-            nn.Linear(64, 32).double(),
-            nn.Linear(32, n_actions).double()
-        ])
-        # self.layers = nn.ModuleList([
-        #     nn.Linear(n_observations, 128).double(),
-        #     nn.Linear(128, 128).double(),
-        #     nn.Linear(128, n_actions).double()
-        # ])
+             nn.Linear(n_observations, 128).double(),
+             nn.Linear(128, 128).double(),
+             nn.Linear(128, n_actions).double()
+         ])
     
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
