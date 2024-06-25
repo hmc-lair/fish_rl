@@ -62,9 +62,9 @@ class DQN(nn.Module):
         #    nn.Linear(32, n_actions).double()
         #])
         self.layers = nn.ModuleList([
-             nn.Linear(n_observations, 128).double(),
-             nn.Linear(128, 128).double(),
-             nn.Linear(128, n_actions).double()
+             nn.Linear(n_observations, 32).double(),
+             nn.Linear(32, 32).double(),
+             nn.Linear(32, n_actions).double()
          ])
     
     # Called with either one element to determine next action, or a batch
