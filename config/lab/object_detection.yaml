@@ -1,0 +1,6 @@
+lure:
+  hsv_threshold:
+    lower: [100, 50, 50]    # Min H, S, and V
+    upper: [140, 255, 255]  # Max H, S, and V
+
+  kernel_size: [3, 3]  # Size of the elliptical kernel used in the morphology operations

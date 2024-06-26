@@ -106,7 +106,7 @@ class FishEnv(gym.Env):
         else:
             reward_params = self.attrs["reward"]
             assert "type" in reward_params
-            if reward_params["type"] == "distance" or reward_params["type"] == "radius":
+            if reward_params["type"] in ["distance", "continious", "radius"]:
                 assert "target" in reward_params
                 if reward_params["type"] == "radius":
                     assert "radius" in reward_params
@@ -123,6 +123,8 @@ class FishEnv(gym.Env):
                     assert target.shape == (2,)
                     if reward_params["type"] == "distance":
                         self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - target), False)  # Distance from target point
+                    elif reward_params["type"] == "continious":
+                        self._get_reward = lambda agent, fish: (1 / (1 + np.linalg.norm(fish[0][:2] - target)), False)
                     else:
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
                 else:
@@ -541,7 +543,7 @@ if __name__ == "__main__":
         if terminated or truncated or restart or quit:
             break
     env.close()
-    import matplotlib.pyplot as plt
-    plt.plot(dx)
-    plt.plot(dy)
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # plt.plot(dx)
+    # plt.plot(dy)
+    # plt.show()

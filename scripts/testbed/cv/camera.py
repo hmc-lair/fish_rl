@@ -61,6 +61,8 @@ class VideoProcessor:
         new_lure_coords = self._get_lure_coords(self.frame)
         self._lure_coords = new_lure_coords
 
+        print(self._lure_coords)
+
         # Add circles over the positions of the lure and the fish
         if self.render_mode in ["camera", "threshold"]:
             if self._lure_coords is not None:
@@ -71,6 +73,11 @@ class VideoProcessor:
                 key = cv2.waitKey(1)
                 if key == 27:
                     raise KeyboardInterrupt
+            
+            # for (objectID, centroid) in objects.items():
+            #     text = f"ID {objectID}"
+            #     cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            #     cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
 
     def _get_lure_coords(self, frame):
         '''
@@ -81,13 +88,14 @@ class VideoProcessor:
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_blue = np.array(self._object_detection_params["lure"]["hsv_threshold"]["lower"], dtype = "uint8")  # 100, 50, 0
-        upper_blue = np.array(self._object_detection_params["lure"]["hsv_threshold"]["lower"], dtype = "uint8")  # 140, 255, 255
+        upper_blue = np.array(self._object_detection_params["lure"]["hsv_threshold"]["upper"], dtype = "uint8")  # 140, 255, 255
         color_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
         # Apply morphological operations to remove small noise and lines
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, self._object_detection_params["lure"]["kernel_size"])
-        morphed = cv2.morphologyEx(color_mask, cv2.MORPH_OPEN, kernel)
-        morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
+        morphed = color_mask.copy()
+        # morphed = cv2.morphologyEx(color_mask, cv2.MORPH_OPEN, kernel)
+        # morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
         
         # Detect contours and sort them by area
         contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -105,6 +113,65 @@ class VideoProcessor:
                     cX = int(M["m10"] / M["m00"])
                     cY = int(M["m01"] / M["m00"])
                     coords[i] = [cX, cY]
+        # self.render_frame = morphed.copy()
+        return coords
+
+    def _get_fish_coords(self, n_fish, frame):
+        '''
+        finds fish coordinates using adaptive thresholding, returns annotated img frame
+        '''
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        thresh = cv2.adaptiveThreshold(
+            gray,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            self._object_detection_params["fish"]["adaptive_threshold"]["blockSize"],
+            self._object_detection_params["fish"]["adaptive_threshold"]["C"]
+        ) #find local thresholding values
+        thresh_lines_removed = thresh.copy()
+        lines = cv2.HoughLinesP(
+            thresh,
+            1,
+            np.pi / 2,
+            2,
+            None,
+            self._object_detection_params["fish"]["line_removal"]["minLineLength"],
+            self._object_detection_params["fish"]["line_removal"]["maxLineGap"]
+        ) #sharpen thresholding of tank
+
+        #find tank borders and connect endbpoints
+        if lines is not None:
+            for line in lines[:, 0, :]:
+                pt1 = (line[0], line[1]) 
+                pt2 = (line[2], line[3])
+                cv2.line(thresh_lines_removed, pt1, pt2, (0, 0, 0), self._object_detection_params["fish"]["line_removal"]["line_mask_thickness"])
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        morphed = cv2.morphologyEx(thresh_lines_removed, cv2.MORPH_OPEN, kernel)
+        contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+        coords = []
+        min_area = self._object_detection_params["fish"]["contour_criteria"]["min_area"]
+        max_area = self._object_detection_params["fish"]["contour_criteria"]["max_area"]
+        min_aspect_ratio = self._object_detection_params["fish"]["contour_criteria"]["min_aspect_ratio"]
+        max_aspect_ratio = self._object_detection_params["fish"]["contour_criteria"]["max_aspect_ratio"]
+        for contour in contours[:n_fish]:
+            area = cv2.contourArea(contour)
+            if min_area < area < max_area:
+                x, y, w, h = cv2.boundingRect(contour)
+                aspect_ratio = w / float(h)
+
+                if min_aspect_ratio < aspect_ratio < max_aspect_ratio:
+                    M = cv2.moments(contour)
+                    if M["m00"] != 0:
+                        cX = int(M["m10"] / M["m00"])
+                        cY = int(M["m01"] / M["m00"])
+                        coords.append((cX, cY))
+                        # cv2.drawContours(frame, [contour], -1, (0, 255, 0), 2)
+                        # cv2.circle(frame, (cX, cY), 5, (255, 0, 0), -1)
         return coords
 
     # def get_coords(self, num_objects, offset=0):
@@ -260,7 +327,8 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--save", action="store_true", help="Pass this flag to save a video")
     args = parser.parse_args()
     args.port_number = int(args.port_number) if str.isdigit(args.port_number) else args.port_number
-    video = VideoProcessor(args.port_number, args.calibration, render_mode=args.render_mode)
+
+    video = VideoProcessor(args.port_number, args.calibration, "../config/keck/object_detection.yaml", n_fish=2, render_mode=args.render_mode, use_pygame=False)
 
     if args.save:
         result = cv2.VideoWriter(f"../media/{datetime.now()}.avi", cv2.VideoWriter_fourcc(*"MJPG"), 10, (video.raw_frame.shape[1], video.raw_frame.shape[0]))

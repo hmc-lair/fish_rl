@@ -2,6 +2,10 @@ import cv2
 import numpy as np
 import argparse
 from centroidTracker import CentroidTracker
+try:
+    from .calibration import load_calibration_params, apply_calibration, undistort_and_warp
+except:
+    from calibration import load_calibration_params, apply_calibration, undistort_and_warp
 
 def find_and_draw_contours(frame, centroid_tracker, initial_objects):
     cpy = frame.copy()
@@ -43,39 +47,50 @@ def find_and_draw_contours(frame, centroid_tracker, initial_objects):
                         cv2.drawContours(frame, [contour], -1, (0, 255, 0), 2)
                         cv2.circle(frame, (cX, cY), 5, (255, 0, 0), -1)
 
+    # print(input_centroids)
     objects = centroid_tracker.update(input_centroids)
 
     # print("new frame")
     # print(len(input_centroids), objects.items())
-    for (objectID, centroid) in objects.items():
+    for objectID, centroid in objects.items():
         text = f"ID {objectID}"
+        centroid = np.array(centroid, dtype=int)
         cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
 
     return frame
 
-def main(video_path, initial_objects):
-    cap = cv2.VideoCapture(video_path)
-    centroid_tracker = CentroidTracker(initialObjects=initial_objects)
+def main(port_number, calibration_params, initial_objects):
+    cap = cv2.VideoCapture(port_number)
+    centroid_tracker = CentroidTracker(initial_objects)
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        frame_with_contours = find_and_draw_contours(frame, centroid_tracker, initial_objects)
-        cv2.imshow('Frame with Contours', frame_with_contours)
+        if calibration_params is not None:
+            frame = apply_calibration(frame, calibration_params)
 
-        if cv2.waitKey(30) & 0xFF == ord('q'):
+        frame_with_contours = find_and_draw_contours(frame, centroid_tracker, initial_objects)
+        cv2.imshow("Frame with Contours", frame_with_contours)
+
+        if cv2.waitKey(30) & 0xFF == ord("q"):
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process video to find and draw contours.')
-    parser.add_argument('video', type=str, help='Path to the input video file')
-    parser.add_argument('-i', '--initial_objects', type=int, default=3, help='Initial number of objects to track')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process video to find and draw contours.")
+    parser.add_argument("port_number", help="Path to the input video")
+    parser.add_argument("-n", "--num_objects", type=int, default=0, help="Number of objects to track")
+    parser.add_argument("-c", "--calibration", help="file containing calibration parameters")
     args = parser.parse_args()
+    args.port_number = int(args.port_number) if str.isdigit(args.port_number) else args.port_number
 
-    main(args.video, args.initial_objects)
+    calibration_params = None
+    if args.calibration is not None:
+        calibration_params = load_calibration_params(args.calibration)
+
+    main(args.port_number, calibration_params, args.num_objects)

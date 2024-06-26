@@ -1,0 +1,27 @@
+# Radius of the wheel in mm
+WHEEL_RADIUS: 33
+
+# Distance between the centers of the wheels in mm
+WHEEL_SEPARATION: 109.4
+
+# Maximum radians per second
+WHEEL_OMEGA_MAX: 12.56637  # 2 RPS = 4 * pi
+
+WIDTH: 119.5 #MM 
+LENGTH: 143.0 #MM
+
+# Maximum linear velocity
+V_MAX: 0.2  # actual max is 0.4147
+
+# Maximum angular velocity
+OMEGA_MAX: 3.8  # actual max is 7.5812
+
+# Note: technically the robot can exceed these bounds, but not both at the same time.
+# The maximum linear velocity depends on the maximum angular velocity and vice versa.
+# The equation for the maximum linear velocity given a desired angular velocity is:
+#   v_max = WHEEL_OMEGA_MAX * WHEEL_RADIUS - (WHEEL_SEPARATION / 2) * omega
+# The equation for the maximum angular velocity given a desired linear velocity is:
+#   omega_max = (2 / WHEEL_SEPARATION) * (WHEEL_OMEGA_MAX * WHEEL_RADIUS - v)
+
+# The offset of the tape from the chessboard used for calibration. Positive is above, negative is below
+OFFSET: 82.55

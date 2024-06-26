@@ -1,0 +1,20 @@
+lure:
+  hsv_threshold:
+    lower: [80, 50, 50]    # Min H, S, and V
+    upper: [180, 255, 255]  # Max H, S, and V
+
+  kernel_size: [3, 3]  # Size of the elliptical kernel used in the morphology operations
+
+fish:
+  adaptive_threshold:
+    blockSize: 31
+    C: 15
+  line_removal:
+    minLineLength: 40
+    maxLineGap: 5
+    line_mask_thickness: 5
+  contour_criteria:
+    min_area: 40    # Minimum contour area to be considered a fish
+    max_area: 1000  # Maximum contour area to be considered a fish
+    min_aspect_ratio: 0.2
+    max_aspect_ratio: 5.0
