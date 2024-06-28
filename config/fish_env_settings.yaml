@@ -126,6 +126,27 @@ FollowFishSim:
   dynamics:
     robot_force: 0.0
 
+
+Herd1FishHalf:
+  from: DefaultSim
+  n_fish: 1
+
+  max_episode_steps: 200
+
+  reward:
+    type: count
+    bounds:
+      maxx: 0.5
+      minx: 0
+      maxy: 1
+      miny: 0
+
+GoToHalfContiniousSim:
+  from: Herd1FishHalf
+  reward:
+    type: continious
+    target: [0.0, 0.5]
+
 ################################################################### Real Environments ###################################################################
 
 DefaultReal:
