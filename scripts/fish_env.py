@@ -100,7 +100,7 @@ class FishEnv(gym.Env):
         else:
             reward_params = self.attrs["reward"]
             assert "type" in reward_params
-            if reward_params["type"] in ["distance", "continious", "radius"]:
+            if reward_params["type"] in ["distance", "continious", "radius", "actor"]:
                 assert "target" in reward_params
                 if reward_params["type"] == "radius":
                     assert "radius" in reward_params
@@ -112,6 +112,8 @@ class FishEnv(gym.Env):
                         self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - fish[0][:2]), False)  # Distance from fish
                     elif reward_params["type"] == "continious":
                         self._get_reward = lambda agent, fish: (1 / (1 + np.linalg.norm(fish[0][:2] - target)), False)
+                    elif reward_params["type"] == "actor":
+                        self._get_reward = lambda agent, fish: (1 if fish[0][0] < (self.minx + self.maxx) / 2 else -1, False)
                     else:
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - fish[0][:2]) > radius else (1, True)  # Radius from fish
                 elif isinstance(reward_params["target"], list):
