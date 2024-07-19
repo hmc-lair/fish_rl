@@ -10,7 +10,7 @@ from itertools import count
 from fish_env import FishEnv
 from tqdm import tqdm
 import argparse
-
+import os
 
 import torch
 import torch.nn as nn
@@ -241,6 +241,9 @@ if __name__ == "__main__":
    wandb.init(
        project="fish-rl",
        config={
+           "environment": args.name,
+           "output": os.path.split(args.output),
+           "algorithm": "actor critic",
            "episodes": num_episodes,
        }
    )

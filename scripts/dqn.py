@@ -12,6 +12,7 @@ from itertools import count
 from fish_env import FishEnv
 from tqdm import tqdm
 import argparse
+import os
 
 import torch
 import torch.nn as nn
@@ -52,7 +53,7 @@ class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        #self.layers = nn.ModuleList([
+        # self.layers = nn.ModuleList([
         #    nn.Linear(n_observations, 32).double(),
         #    nn.Linear(32, 64).double(),
         #    nn.Linear(64, 128).double(),
@@ -60,7 +61,7 @@ class DQN(nn.Module):
         #    nn.Linear(128, 64).double(),
         #    nn.Linear(64, 32).double(),
         #    nn.Linear(32, n_actions).double()
-        #])
+        # ])
         self.layers = nn.ModuleList([
              nn.Linear(n_observations, 32).double(),
              nn.Linear(32, 32).double(),
@@ -78,6 +79,7 @@ class DQN(nn.Module):
             else:
                 x = F.relu(layer(x))
         return x
+        # return self.layers(x)
 
 def select_action(state):
     global steps_done
@@ -241,6 +243,9 @@ if __name__ == "__main__":
 
         # track hyperparameters and run metadata
         config={
+            "environment": args.name,
+            "output": os.path.split(args.output),
+            "algorithm": "dqn",
             "episodes": num_episodes,
         }
     )
