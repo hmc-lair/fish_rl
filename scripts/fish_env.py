@@ -106,7 +106,7 @@ class FishEnv(gym.Env):
         else:
             reward_params = self.attrs["reward"]
             assert "type" in reward_params
-            if reward_params["type"] in ["distance", "continious", "radius"]:
+            if reward_params["type"] in ["distance", "continious", "radius", "positional", "direction", "combo", "comboPosDis"]:
                 assert "target" in reward_params
                 if reward_params["type"] == "radius":
                     assert "radius" in reward_params
@@ -125,6 +125,14 @@ class FishEnv(gym.Env):
                         self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - target), False)  # Distance from target point
                     elif reward_params["type"] == "continious":
                         self._get_reward = lambda agent, fish: (1 / (1 + np.linalg.norm(fish[0][:2] - target)), False)
+                    elif reward_params["type"] == "positional":
+                        self._get_reward =  lambda agent, fish: ((1 + np.dot((target - fish[0][:2]) / np.linalg.norm(target - fish[0][:2]),(fish[0][:2] - agent[:2]) / np.linalg.norm(fish[0][:2] - agent[:2]))) / 2, False)                        
+                    elif reward_params["type"] == "direction":
+                        self._get_reward = lambda agent, fish: (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1, False)
+                    elif reward_params["type"] == "combo":
+                        self._get_reward = lambda agent, fish: ((1 / (1 + np.linalg.norm(fish[0][:2] - target)) + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1)), False)
+                    elif reward_params["type"] == "comboPosDis":
+                        return lambda agent, fish: ((1 + np.dot((self.target - fish[0][:2]) / np.linalg.norm(self.target - fish[0][:2]),(fish[0][:2] - agent[:2]) / np.linalg.norm(fish[0][:2] - agent[:2]))) / 2 + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1), False)
                     else:
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
                 else:
@@ -252,33 +260,12 @@ class FishEnv(gym.Env):
             _, self._fish = update(self.bounds, self.np_random, self._agent, self._fish, np.array([0, 0]), self.dt, self.attrs["dynamics"])
             self._rl_controller.command_vels(*self._action_to_vels(action))
 
-        reward, terminated = self._get_reward(self._agent, self._fish)
-        # # Calculate reward using the fish covariance
-        # # The eigenvalues `l1` and `l2` of the covariance matrix are calculated
-        # # These are the axes of the covariance ellipse
-        # # https://cookierobotics.com/007/
-        # if len(self._fish) >= 2:
-        #     cov = np.cov(self._fish[:, :2].T)
-        #     l1 = (cov[0][0] + cov[1][1]) / 2 + np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        #     l2 = (cov[0][0] + cov[1][1]) / 2 - np.sqrt(np.square((cov[0][0] - cov[1][1]) / 2) + np.square(cov[0][1]))
-        #     reward = -np.sqrt(l1) - np.sqrt(l2)
-        # elif len(self._fish) == 1:
-        #     #reward = -np.linalg.norm(self._agent[:2])
-        #     reward = -np.linalg.norm(self._fish[0][:2] - self._agent[:2])
-        #     # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.1:
-        #     #     reward += 1000
-        #     # reward = 1 / np.linalg.norm(self._fish[0][:2] - self._agent[:2])
-        #     # print(np.linalg.norm(self._fish[0][:2] - self._agent[:2]))
-        #     # if np.linalg.norm(self._fish[0][:2] - self._agent[:2]) <= 0.05:
-        #     #     reward = 1
-        #     #     terminated = True
-        #     # else:
-        #     #     reward = 0
-        # else:
-        #     reward = 0
-        
-        # if truncated:
-        #     reward = -np.inf
+        # Check if the agent is out of bounds
+        if self._agent[0] < self.minx or self._agent[0] > self.maxx or self._agent[1] < self.miny or self._agent[1] > self.maxy:
+            reward = -.25  # Assign a negative reward for touching the wall or going out of bounds
+            terminated = False  # Terminate episode if agent is out of bounds
+        else:
+            reward, terminated = self._get_reward(self._agent, self._fish)
 
         observation = self._get_obs()
         info = self._get_info()
@@ -291,6 +278,7 @@ class FishEnv(gym.Env):
             truncated = True
 
         return observation, reward, terminated, truncated, info
+
 
     def reset(self, seed=None, options=None):
 

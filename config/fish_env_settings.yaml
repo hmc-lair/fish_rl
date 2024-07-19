@@ -145,6 +145,12 @@ GoToHalfContiniousSim:
   reward:
     type: continious
     target: [0.0, 0.5]
+
+ActorHalf:
+  from: Herd1FishHalf
+  reward:
+    type: combo
+    target: [0.0, 0.5]
   
   # dynamics:
   #   fish_lin_v : 0.0
