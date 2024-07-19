@@ -130,9 +130,11 @@ class FishEnv(gym.Env):
                     elif reward_params["type"] == "direction":
                         self._get_reward = lambda agent, fish: (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1, False)
                     elif reward_params["type"] == "combo":
-                        self._get_reward = lambda agent, fish: ((1 / (1 + np.linalg.norm(fish[0][:2] - target)) + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1)), False)
+                        self._get_reward = lambda agent, fish: ( \
+                            (1 / (1 + np.linalg.norm(fish[0][:2] - target)) + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1)) \
+                        , False)
                     elif reward_params["type"] == "comboPosDis":
-                        return lambda agent, fish: ((1 + np.dot((self.target - fish[0][:2]) / np.linalg.norm(self.target - fish[0][:2]),(fish[0][:2] - agent[:2]) / np.linalg.norm(fish[0][:2] - agent[:2]))) / 2 + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1), False)
+                        self._get_reward = lambda agent, fish: ((1 + np.dot((target - fish[0][:2]) / np.linalg.norm(target - fish[0][:2]),(fish[0][:2] - agent[:2]) / np.linalg.norm(fish[0][:2] - agent[:2]))) / 2 + (1 if (fish[0][:2] - agent[:2])[0] < 0 else -1), False)
                     else:
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - target) > radius else (1, True)  # Radius from fish
                 else:

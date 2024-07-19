@@ -37,10 +37,9 @@ class ReplayMemory(object):
    def __init__(self, capacity):
        self.memory = deque([], maxlen=capacity)
 
-
    def push(self, *args):
        self.memory.append(Transition(*args))
-  
+
    def sample(self, batch_size):
        return random.sample(self.memory, batch_size)
   
@@ -60,14 +59,13 @@ class Actor(nn.Module):
        )
        self.softmax = nn.Softmax(dim=-1)
 
-
    def forward(self, x):
        x = self.layers(x)
        x = torch.clamp(x, min=-10, max=10)  # Clamping to avoid extreme values
        return self.softmax(x)
 
 
-
+ 
 
 class Critic(nn.Module):
    def __init__(self, n_observations):
