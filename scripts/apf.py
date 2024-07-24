@@ -120,10 +120,17 @@ def update(bounds, rng, robot, fish, action, dt, dynamics):
             x_f = x + v * dt * np.cos(theta)
             y_f = y + v * dt * np.sin(theta)
         else:
-            x_c = x - v/omega * np.sin(theta)
-            y_c = y + v/omega * np.cos(theta)
-            x_f = x_c + v/omega * np.sin(theta + omega * dt)
-            y_f = y_c - v/omega * np.cos(theta + omega * dt)
+            # These two implementations are mathematically the same, but the first has numerical issues when omega is close to 0
+            # x_c = x - v/omega * np.sin(theta)
+            # y_c = y + v/omega * np.cos(theta)
+            # x_f = x_c + v/omega * np.sin(theta + omega * dt)
+            # y_f = y_c - v/omega * np.cos(theta + omega * dt)
+            dx = v/omega * np.sin(omega * dt)
+            dy = v/omega * (1 - np.cos(omega * dt))
+            x_f, y_f = np.array([x, y]) + np.array([
+                [np.cos(theta), -np.sin(theta)],
+                [np.sin(theta), np.cos(theta)]
+            ]) @ np.array([dx, dy])
 
         # Confine the robot to the bounds
         if x_f <= bounds[0, 0]:

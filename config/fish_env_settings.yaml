@@ -4,7 +4,7 @@ DefaultSim:
   type: sim
 
   # Number of fish to simulate
-  n_fish: 2
+  n_fish: 0
 
   # Type of reward function. If null, no reward is given at any time
   reward: null
