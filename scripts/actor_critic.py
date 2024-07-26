@@ -242,6 +242,7 @@ if __name__ == "__main__":
        project="fish-rl",
        config={
            "environment": args.name,
+           "env_settings": env.attrs,
            "output": os.path.split(args.output),
            "algorithm": "actor critic",
            "episodes": num_episodes,

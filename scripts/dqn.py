@@ -244,6 +244,7 @@ if __name__ == "__main__":
         # track hyperparameters and run metadata
         config={
             "environment": args.name,
+            "env_settings": env.attrs,
             "output": os.path.split(args.output),
             "algorithm": "dqn",
             "episodes": num_episodes,
