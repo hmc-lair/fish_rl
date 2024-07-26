@@ -209,7 +209,7 @@ if __name__ == "__main__":
    plt.ion()
 
 
-   device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
    n_actions = spaces.utils.flatdim(env.action_space)

@@ -116,13 +116,19 @@ class FishEnv(gym.Env):
                     assert self.n_fish == 1
                     if reward_params["type"] == "distance":
                         self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - fish[0][:2]), False)  # Distance from fish
+                    elif reward_params["type"] == "shifted_distance":
+                        diagonal = np.sqrt(np.sum(np.square(self.bounds[1] - self.bounds[0])))
+                        self._get_reward = lambda agent, fish: (diagonal-np.linalg.norm(agent[:2] - target), False)  # Negative distance from target point shifted up to always be positive
                     else:
                         self._get_reward = lambda agent, fish: (0, False) if np.linalg.norm(agent[:2] - fish[0][:2]) > radius else (1, True)  # Radius from fish
                 elif isinstance(reward_params["target"], list):
                     target = np.array(reward_params["target"])
                     assert target.shape == (2,)
                     if reward_params["type"] == "distance":
-                        self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - target), False)  # Distance from target point
+                        self._get_reward = lambda agent, fish: (-np.linalg.norm(agent[:2] - target), False)  # Negative distance from target point
+                    elif reward_params["type"] == "shifted_distance":
+                        diagonal = np.sqrt(np.sum(np.square(self.bounds[1] - self.bounds[0])))
+                        self._get_reward = lambda agent, fish: (diagonal-np.linalg.norm(agent[:2] - target), False)  # Negative distance from target point shifted up to always be positive
                     elif reward_params["type"] == "continious":
                         self._get_reward = lambda agent, fish: (1 / (1 + np.linalg.norm(fish[0][:2] - target)), False)
                     elif reward_params["type"] == "positional":
